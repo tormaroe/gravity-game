@@ -28,6 +28,9 @@ function World.new()
 
         -- Starting platform (raised ledge, left-center)
         { x = 180,  y = SH - 140, w = 160, h = 18,  color = COL_PLATFORM },
+
+        -- Second starting platform (raised ledge, right-center, symmetric)
+        { x = SW - 180 - 160, y = SH - 140, w = 160, h = 18, color = COL_PLATFORM },
     }
 
     return self

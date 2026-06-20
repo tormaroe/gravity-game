@@ -8,14 +8,37 @@ local Bullet = require("bullet")
 
 -- ── State ──────────────────────────────────────────────────────────────────
 local world
-local ship
+local ship1  -- Player 1 (Blue)
+local ship2  -- Player 2 (Red)
 local starfield   -- background stars for ambiance
 local bullets = {} -- active projectiles
 local gameCanvas  -- Canvas for scaling resolution
 
--- Platform spawn position (centre of the starting platform)
-local PLATFORM_X  = 180 + 80   -- platform.x + platform.w/2
-local PLATFORM_Y  = 768 - 140  -- platform.y  (top of platform)
+-- Platform spawn positions (symmetric)
+local PLATFORM_1_X  = 180 + 80         -- Left platform center
+local PLATFORM_1_Y  = 768 - 140
+local PLATFORM_2_X  = 1024 - 180 - 80  -- Right platform center (symmetric)
+local PLATFORM_2_Y  = 768 - 140
+
+-- Player 1 (Blue) configuration
+local CONFIG_P1 = {
+    controls = { left = "a", right = "d", thrust = "w" },
+    color = {
+        hull    = {0.15, 0.45, 0.9},
+        outline = {0.5, 0.8, 1.0},
+        cockpit = {0.0, 0.2, 0.6}
+    }
+}
+
+-- Player 2 (Red) configuration
+local CONFIG_P2 = {
+    controls = { left = "left", right = "right", thrust = "up" },
+    color = {
+        hull    = {0.9, 0.2, 0.15},
+        outline = {1.0, 0.5, 0.5},
+        cockpit = {0.6, 0.0, 0.0}
+    }
+}
 
 -- ── Helpers ────────────────────────────────────────────────────────────────
 local function makeStars(count)
@@ -63,9 +86,10 @@ function love.load(arg)
     world     = World.new()
     starfield = makeStars(120)
 
-    -- Place ship so its bottom edge sits flush on the platform surface
+    -- Place both ships on their respective platforms
     local shipH = 22
-    ship = Ship.new(PLATFORM_X, PLATFORM_Y - shipH / 2 + 2)
+    ship1 = Ship.new(PLATFORM_1_X, PLATFORM_1_Y - shipH / 2 + 2, CONFIG_P1)
+    ship2 = Ship.new(PLATFORM_2_X, PLATFORM_2_Y - shipH / 2 + 2, CONFIG_P2)
 
     -- Create Canvas for scaling resolution
     gameCanvas = love.graphics.newCanvas(1024, 768)
@@ -77,7 +101,9 @@ end
 function love.update(dt)
     -- Cap dt to avoid huge jumps when window is moved / unfocused
     dt = math.min(dt, 1/30)
-    ship:update(dt, world:getRects())
+    
+    ship1:update(dt, world:getRects())
+    ship2:update(dt, world:getRects())
 
     -- Update active projectiles
     for i = #bullets, 1, -1 do
@@ -88,8 +114,8 @@ function love.update(dt)
         end
     end
 
-    -- Update procedural audio state
-    Audio.update(dt, ship.thrusting)
+    -- Update procedural audio state (if either ship is thrusting)
+    Audio.update(dt, ship1.thrusting or ship2.thrusting)
 end
 
 function love.draw()
@@ -111,8 +137,9 @@ function love.draw()
         b:draw()
     end
 
-    -- ── Ship ─────────────────────────────────────────────────
-    ship:draw()
+    -- ── Ships ────────────────────────────────────────────────
+    ship1:draw()
+    ship2:draw()
 
     -- ── HUD ──────────────────────────────────────────────────
     drawHUD()
@@ -135,29 +162,42 @@ function love.draw()
 end
 
 function drawHUD()
-    love.graphics.setColor(0.7, 0.9, 0.7, 0.9)
     love.graphics.setLineWidth(1)
 
-    -- Speed readout
-    local speed = math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy)
+    -- ── Player 1 (Blue) Readout (Left side) ──────────────────
+    love.graphics.setColor(0.5, 0.7, 1.0, 0.9) -- Blue HUD color
+    local speed1 = math.sqrt(ship1.vx * ship1.vx + ship1.vy * ship1.vy)
     love.graphics.printf(
-        string.format("SPD  %5.1f\nANG  %5.1f°",
-            speed,
-            math.deg(ship.angle) % 360
+        string.format("PLAYER 1 (BLUE)\nSPD  %5.1f\nANG  %5.1f°",
+            speed1,
+            math.deg(ship1.angle) % 360
         ),
-        20, 20, 200, "left"
+        20, 20, 250, "left"
     )
+    local status1 = ship1.landed and "LANDED" or "AIRBORNE"
+    local sc1 = ship1.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
+    love.graphics.setColor(sc1[1], sc1[2], sc1[3], 0.9)
+    love.graphics.printf(status1, 20, 75, 200, "left")
 
-    -- Status
-    local status = ship.landed and "LANDED" or "AIRBORNE"
-    local sc = ship.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
-    love.graphics.setColor(sc[1], sc[2], sc[3], 0.9)
-    love.graphics.printf(status, 20, 60, 200, "left")
+    -- ── Player 2 (Red) Readout (Right side) ──────────────────
+    love.graphics.setColor(1.0, 0.5, 0.5, 0.9) -- Red HUD color
+    local speed2 = math.sqrt(ship2.vx * ship2.vx + ship2.vy * ship2.vy)
+    love.graphics.printf(
+        string.format("PLAYER 2 (RED)\nSPD  %5.1f\nANG  %5.1f°",
+            speed2,
+            math.deg(ship2.angle) % 360
+        ),
+        1024 - 270, 20, 250, "right"
+    )
+    local status2 = ship2.landed and "LANDED" or "AIRBORNE"
+    local sc2 = ship2.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
+    love.graphics.setColor(sc2[1], sc2[2], sc2[3], 0.9)
+    love.graphics.printf(status2, 1024 - 220, 75, 200, "right")
 
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)
     love.graphics.printf(
-        "A / D  rotate     W  thrust     Space  fire     R  reset",
+        "P1: WASD + Space (Fire)      |      P2: Arrows + Enter (Fire)      |      R: Reset",
         0, 748, 1024, "center"
     )
     love.graphics.setColor(1, 1, 1)
@@ -165,18 +205,29 @@ end
 
 function love.keypressed(key)
     if key == "r" then
-        -- Soft reset: put ship back on the platform
+        -- Soft reset: put both ships back on their platforms
         local shipH = 22
-        ship = Ship.new(PLATFORM_X, PLATFORM_Y - shipH / 2 + 2)
+        ship1 = Ship.new(PLATFORM_1_X, PLATFORM_1_Y - shipH / 2 + 2, CONFIG_P1)
+        ship2 = Ship.new(PLATFORM_2_X, PLATFORM_2_Y - shipH / 2 + 2, CONFIG_P2)
         bullets = {}
     end
     if key == "space" then
-        -- Spawn bullet from the nose of the ship
-        local hh = ship.h / 2
-        local spawnX = ship.x + math.sin(ship.angle) * hh
-        local spawnY = ship.y - math.cos(ship.angle) * hh
+        -- P1 (Blue) fires bullet
+        local hh = ship1.h / 2
+        local spawnX = ship1.x + math.sin(ship1.angle) * hh
+        local spawnY = ship1.y - math.cos(ship1.angle) * hh
         
-        local b = Bullet.new(spawnX, spawnY, ship.angle, ship.vx, ship.vy)
+        local b = Bullet.new(spawnX, spawnY, ship1.angle, ship1.vx, ship1.vy, {0.5, 0.8, 1.0, 0.9})
+        table.insert(bullets, b)
+        Audio.playShoot()
+    end
+    if key == "return" then
+        -- P2 (Red) fires bullet
+        local hh = ship2.h / 2
+        local spawnX = ship2.x + math.sin(ship2.angle) * hh
+        local spawnY = ship2.y - math.cos(ship2.angle) * hh
+        
+        local b = Bullet.new(spawnX, spawnY, ship2.angle, ship2.vx, ship2.vy, {1.0, 0.5, 0.5, 0.9})
         table.insert(bullets, b)
         Audio.playShoot()
     end

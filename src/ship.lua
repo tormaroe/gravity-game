@@ -10,7 +10,7 @@ local SHIP_W         = 14
 local SHIP_H         = 22
 local DAMPING        = 0.995           -- very slight air resistance
 
-function Ship.new(x, y)
+function Ship.new(x, y, config)
     local self = setmetatable({}, Ship)
     self.x       = x
     self.y       = y
@@ -21,6 +21,19 @@ function Ship.new(x, y)
     self.h       = SHIP_H
     self.landed  = true   -- start resting; gravity won't apply until first liftoff
     self.thrusting = false
+
+    -- Parse custom controls and colors (with defaults for unit tests)
+    config = config or {}
+    local controls = config.controls or {}
+    self.key_left   = controls.left or "a"
+    self.key_right  = controls.right or "d"
+    self.key_thrust = controls.thrust or "w"
+
+    local color = config.color or {}
+    self.col_hull    = color.hull or {0.6, 0.85, 1.0}
+    self.col_outline = color.outline or {0.9, 1.0, 1.0}
+    self.col_cockpit = color.cockpit or {0.2, 0.5, 0.9}
+
     return self
 end
 
@@ -28,15 +41,15 @@ function Ship:update(dt, terrain)
     local GRAVITY = 200  -- pixels per second^2 downward
 
     -- ── Rotation ─────────────────────────────────────────────
-    if love.keyboard.isDown("a") then
+    if love.keyboard.isDown(self.key_left) then
         self.angle = self.angle - ROTATE_SPEED * dt
     end
-    if love.keyboard.isDown("d") then
+    if love.keyboard.isDown(self.key_right) then
         self.angle = self.angle + ROTATE_SPEED * dt
     end
 
     -- ── Thrust ───────────────────────────────────────────────
-    self.thrusting = love.keyboard.isDown("w")
+    self.thrusting = love.keyboard.isDown(self.key_thrust)
     if self.thrusting then
         -- angle=0 means nose up; thrust in -sin/+cos of angle direction
         local tx = math.sin(self.angle) * THRUST_FORCE
@@ -129,7 +142,7 @@ function Ship:draw()
     local hh = self.h / 2
 
     -- Hull
-    love.graphics.setColor(0.6, 0.85, 1.0)
+    love.graphics.setColor(self.col_hull)
     love.graphics.polygon("fill",
          hw * 0.4, -hh,   -- top-right (nose)
         -hw * 0.4, -hh,   -- top-left  (nose)
@@ -137,7 +150,7 @@ function Ship:draw()
          hw,        hh    -- bottom-right
     )
     -- Outline
-    love.graphics.setColor(0.9, 1.0, 1.0)
+    love.graphics.setColor(self.col_outline)
     love.graphics.setLineWidth(1.2)
     love.graphics.polygon("line",
          hw * 0.4, -hh,
@@ -147,7 +160,7 @@ function Ship:draw()
     )
 
     -- Cockpit window
-    love.graphics.setColor(0.2, 0.5, 0.9)
+    love.graphics.setColor(self.col_cockpit)
     love.graphics.ellipse("fill", 0, -hh * 0.25, hw * 0.35, hh * 0.22)
 
     -- Thrust flame

@@ -8,11 +8,12 @@ local BULLET_SPEED   = 550  -- speed relative to ship muzzle
 local BULLET_GRAVITY = 120  -- lower than ship gravity so they fly flatter
 local TRAILING_TIME  = 0.012 -- length of tracer effect in seconds
 
-function Bullet.new(startX, startY, angle, shipVx, shipVy)
+function Bullet.new(startX, startY, angle, shipVx, shipVy, color)
     local self = setmetatable({}, { __index = Bullet })
     
     self.x = startX
     self.y = startY
+    self.color = color or {1.0, 0.9, 0.4, 0.9} -- fallback for unit tests
     
     -- Calculate bullet velocity incorporating ship momentum
     self.vx = shipVx + math.sin(angle) * BULLET_SPEED
@@ -57,7 +58,7 @@ function Bullet:draw()
     
     -- Draw as a small glowing tracer line
     love.graphics.setLineWidth(2)
-    love.graphics.setColor(1.0, 0.9, 0.4, 0.9) -- Orange/yellow glow
+    love.graphics.setColor(self.color)
     
     -- Tail is behind the bullet's current position based on velocity
     local tailX = self.x - self.vx * TRAILING_TIME
