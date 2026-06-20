@@ -21,6 +21,7 @@ local winnerName = nil
 local fontTitle
 local fontMedium
 local fontSmall
+local defaultFont
 local menuShip1
 local menuShip2
 
@@ -112,7 +113,8 @@ function love.load(arg)
     math.randomseed(os.time())
     love.graphics.setDefaultFilter("nearest", "nearest")
 
-    -- Load custom fonts with fallback to default LÖVE font
+    -- Save default LÖVE font and load custom fonts with fallbacks
+    defaultFont = love.graphics.getFont() or love.graphics.newFont(12)
     local ok, ft = pcall(love.graphics.newFont, "font.ttf", 36)
     if ok then
         fontTitle  = ft
@@ -123,7 +125,6 @@ function love.load(arg)
         fontMedium = love.graphics.newFont(18)
         fontSmall  = love.graphics.newFont(12)
     end
-    love.graphics.setFont(fontSmall)
 
     world     = World.new()
     starfield = makeStars(120)
@@ -483,7 +484,9 @@ local function drawFuelBar(x, y, w, h, fuel)
 end
 
 function drawHUD()
-    love.graphics.setFont(fontSmall)
+    if defaultFont then
+        love.graphics.setFont(defaultFont)
+    end
     love.graphics.setLineWidth(1)
 
     -- ── Player 1 (Blue) Readout (Left side) ──────────────────
