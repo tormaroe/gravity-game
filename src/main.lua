@@ -5,6 +5,7 @@ local Ship  = require("ship")
 local World = require("world")
 local Audio = require("audio")
 local Bullet = require("bullet")
+local Powerup = require("powerup")
 
 -- ── State ──────────────────────────────────────────────────────────────────
 local world
@@ -14,6 +15,8 @@ local starfield   -- background stars for ambiance
 local bullets = {} -- active projectiles
 local particles = {} -- explosion particles
 local gameCanvas  -- Canvas for scaling resolution
+local powerups = {} -- active floating powerup items
+local powerupSpawnTimer = 0.0
 
 -- Game state variables
 local gameState = "STARTUP" -- "STARTUP", "PLAYING", "GAMEOVER"
@@ -70,6 +73,25 @@ local function spawnExplosion(x, y, color)
     end
 end
 
+-- Helper to trigger shield hit particles
+local function spawnShieldParticles(x, y)
+    for i = 1, 15 do
+        local angle = math.random() * math.pi * 2
+        local speed = math.random() * 80 + 30
+        local life = math.random() * 0.4 + 0.2
+        table.insert(particles, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            life = life,
+            maxLife = life,
+            color = {0.3, 0.9, 1.0}, -- Shield cyan
+            size = math.random() * 1.5 + 1.0
+        })
+    end
+end
+
 -- ── Helpers ────────────────────────────────────────────────────────────────
 local function makeStars(count)
     local stars = {}
@@ -82,6 +104,42 @@ local function makeStars(count)
         }
     end
     return stars
+end
+
+local function spawnPowerupAtRandomLocation()
+    local rx, ry
+    local rects = world:getRects()
+    local success = false
+    
+    for attempt = 1, 15 do
+        rx = math.random(80, 944)
+        ry = math.random(80, 688)
+        
+        -- Check collision with terrain
+        local collides = false
+        local r_check = 25
+        for _, rect in ipairs(rects) do
+            if rx + r_check > rect.x and rx - r_check < rect.x + rect.w and
+               ry + r_check > rect.y and ry - r_check < rect.y + rect.h then
+                collides = true
+                break
+            end
+        end
+        
+        if not collides then
+            success = true
+            break
+        end
+    end
+    
+    if not success then
+        rx = 512
+        ry = 280
+    end
+    
+    local pType = (math.random() < 0.5) and "BULLET_SPRAY" or "SHIELD"
+    table.insert(powerups, Powerup.new(rx, ry, pType))
+    Audio.playPop()
 end
 
 -- ── LÖVE callbacks ─────────────────────────────────────────────────────────
@@ -140,6 +198,10 @@ function love.load(arg)
 
     -- Create Canvas for scaling resolution
     gameCanvas = love.graphics.newCanvas(1024, 768)
+
+    -- Initialize powerups state
+    powerupSpawnTimer = math.random(10, 30)
+    powerups = {}
 
     -- Initialize procedural audio engine
     Audio.init()
@@ -208,19 +270,26 @@ function love.update(dt)
                     local hh = ship1.h / 2
                     if b.x >= ship1.x - hw and b.x <= ship1.x + hw and b.y >= ship1.y - hh and b.y <= ship1.y + hh then
                         b.isAlive = false
-                        ship1.isAlive = false
-                        ship1.respawnTimer = 3.0
-                        ship2.kills = ship2.kills + 1
-                        ship2.shootBlockTimer = 6.0 -- 3s dead + 3s spawn protection safety
-                        Audio.playExplosion()
-                        spawnExplosion(ship1.x, ship1.y, CONFIG_P1.color.hull)
+                        if ship1.hasShield then
+                            ship1.hasShield = false
+                            Audio.playShieldBreak()
+                            spawnShieldParticles(ship1.x, ship1.y)
+                        else
+                            ship1.isAlive = false
+                            ship1.respawnTimer = 3.0
+                            ship1.bulletSprayTimer = 0.0 -- Lose powerup on death
+                            ship2.kills = ship2.kills + 1
+                            ship2.shootBlockTimer = 6.0 -- 3s dead + 3s spawn protection safety
+                            Audio.playExplosion()
+                            spawnExplosion(ship1.x, ship1.y, CONFIG_P1.color.hull)
 
-                        -- Check win condition
-                        if ship2.kills >= 5 then
-                            gameState = "GAMEOVER"
-                            winnerName = "PLAYER 2 (RED)"
-                            Audio.stopMusic()
-                            Audio.playFanfare()
+                            -- Check win condition
+                            if ship2.kills >= 5 then
+                                gameState = "GAMEOVER"
+                                winnerName = "PLAYER 2 (RED)"
+                                Audio.stopMusic()
+                                Audio.playFanfare()
+                            end
                         end
                     end
                 end
@@ -233,19 +302,26 @@ function love.update(dt)
                     local hh = ship2.h / 2
                     if b.x >= ship2.x - hw and b.x <= ship2.x + hw and b.y >= ship2.y - hh and b.y <= ship2.y + hh then
                         b.isAlive = false
-                        ship2.isAlive = false
-                        ship2.respawnTimer = 3.0
-                        ship1.kills = ship1.kills + 1
-                        ship1.shootBlockTimer = 6.0 -- 3s dead + 3s spawn protection safety
-                        Audio.playExplosion()
-                        spawnExplosion(ship2.x, ship2.y, CONFIG_P2.color.hull)
+                        if ship2.hasShield then
+                            ship2.hasShield = false
+                            Audio.playShieldBreak()
+                            spawnShieldParticles(ship2.x, ship2.y)
+                        else
+                            ship2.isAlive = false
+                            ship2.respawnTimer = 3.0
+                            ship2.bulletSprayTimer = 0.0 -- Lose powerup on death
+                            ship1.kills = ship1.kills + 1
+                            ship1.shootBlockTimer = 6.0 -- 3s dead + 3s spawn protection safety
+                            Audio.playExplosion()
+                            spawnExplosion(ship2.x, ship2.y, CONFIG_P2.color.hull)
 
-                        -- Check win condition
-                        if ship1.kills >= 5 then
-                            gameState = "GAMEOVER"
-                            winnerName = "PLAYER 1 (BLUE)"
-                            Audio.stopMusic()
-                            Audio.playFanfare()
+                            -- Check win condition
+                            if ship1.kills >= 5 then
+                                gameState = "GAMEOVER"
+                                winnerName = "PLAYER 1 (BLUE)"
+                                Audio.stopMusic()
+                                Audio.playFanfare()
+                            end
                         end
                     end
                 end
@@ -280,6 +356,56 @@ function love.update(dt)
             ship2.y = PLATFORM_2_Y - shipH / 2 + 2
             ship2.landed = true
             Audio.playRespawn()
+        end
+
+        -- 8. Powerup Spawning & Logic
+        powerupSpawnTimer = powerupSpawnTimer - dt
+        if powerupSpawnTimer <= 0 then
+            spawnPowerupAtRandomLocation()
+            powerupSpawnTimer = math.random(10, 30)
+        end
+
+        for i = #powerups, 1, -1 do
+            local p = powerups[i]
+            p:update(dt, world:getRects())
+            
+            local removed = false
+            if p.life <= 0 then
+                table.remove(powerups, i)
+                removed = true
+            end
+            
+            if not removed and ship1.isAlive then
+                local dx = ship1.x - p.x
+                local dy = ship1.y - p.y
+                local dist = math.sqrt(dx*dx + dy*dy)
+                if dist < (ship1.w / 2 + p.r) then
+                    if p.type == "SHIELD" then
+                        ship1.hasShield = true
+                    else
+                        ship1.bulletSprayTimer = 15.0
+                    end
+                    Audio.playPowerup()
+                    table.remove(powerups, i)
+                    removed = true
+                end
+            end
+            
+            if not removed and ship2.isAlive then
+                local dx = ship2.x - p.x
+                local dy = ship2.y - p.y
+                local dist = math.sqrt(dx*dx + dy*dy)
+                if dist < (ship2.w / 2 + p.r) then
+                    if p.type == "SHIELD" then
+                        ship2.hasShield = true
+                    else
+                        ship2.bulletSprayTimer = 15.0
+                    end
+                    Audio.playPowerup()
+                    table.remove(powerups, i)
+                    removed = true
+                end
+            end
         end
     end
 
@@ -407,6 +533,11 @@ function love.draw()
             b:draw()
         end
 
+        -- ── Powerups ─────────────────────────────────────────────
+        for _, p in ipairs(powerups) do
+            p:draw(fontSmall)
+        end
+
         -- ── Explosion Particles ──────────────────────────────────
         for _, p in ipairs(particles) do
             local alpha = p.life / p.maxLife
@@ -425,6 +556,9 @@ function love.draw()
         world:draw()
         for _, b in ipairs(bullets) do
             b:draw()
+        end
+        for _, p in ipairs(powerups) do
+            p:draw(fontSmall)
         end
         for _, p in ipairs(particles) do
             local alpha = p.life / p.maxLife
@@ -508,13 +642,24 @@ function drawHUD()
         love.graphics.setColor(sc1[1], sc1[2], sc1[3], 0.9)
         love.graphics.printf(status1, 20, 75, 200, "left")
 
-        -- Weapons status / safety locks
+        -- Weapons status / safety locks / Shield
+        local wpStr1 = "WEAPONS READY"
+        local wpCol1 = {0.4, 1.0, 0.4, 0.6}
         if ship1.shootBlockTimer > 0 then
-            love.graphics.setColor(1.0, 0.5, 0.2, 0.95)
-            love.graphics.printf(string.format("WEAPONS LOCK: %1.1fs", ship1.shootBlockTimer), 20, 95, 200, "left")
-        else
-            love.graphics.setColor(0.4, 1.0, 0.4, 0.6)
-            love.graphics.printf("WEAPONS READY", 20, 95, 200, "left")
+            wpStr1 = string.format("WEAPONS LOCK: %1.1fs", ship1.shootBlockTimer)
+            wpCol1 = {1.0, 0.5, 0.2, 0.95}
+        end
+        if ship1.hasShield then
+            wpStr1 = wpStr1 .. " [SHIELD]"
+        end
+        love.graphics.setColor(wpCol1[1], wpCol1[2], wpCol1[3], wpCol1[4])
+        if ship1.hasShield then
+            love.graphics.setColor(0.3, 0.9, 1.0, 0.95) -- cyan color for shield text
+        end
+        love.graphics.printf(wpStr1, 20, 95, 250, "left")
+        if ship1.bulletSprayTimer > 0 then
+            love.graphics.setColor(0.3, 0.9, 0.3, 0.95)
+            love.graphics.printf(string.format("SPRAY ACTIVE: %1.1fs", ship1.bulletSprayTimer), 20, 115, 200, "left")
         end
     else
         love.graphics.setColor(1.0, 0.3, 0.3, 0.95)
@@ -523,7 +668,7 @@ function drawHUD()
 
     -- Player 1 Fuel Bar
     if ship1.isAlive then
-        drawFuelBar(20, 130, 120, 10, ship1.fuel)
+        drawFuelBar(20, 150, 120, 10, ship1.fuel)
     end
 
     -- ── Player 2 (Red) Readout (Right side) ──────────────────
@@ -545,13 +690,24 @@ function drawHUD()
         love.graphics.setColor(sc2[1], sc2[2], sc2[3], 0.9)
         love.graphics.printf(status2, 1024 - 220, 75, 200, "right")
 
-        -- Weapons status / safety locks
+        -- Weapons status / safety locks / Shield
+        local wpStr2 = "WEAPONS READY"
+        local wpCol2 = {0.4, 1.0, 0.4, 0.6}
         if ship2.shootBlockTimer > 0 then
-            love.graphics.setColor(1.0, 0.5, 0.2, 0.95)
-            love.graphics.printf(string.format("WEAPONS LOCK: %1.1fs", ship2.shootBlockTimer), 1024 - 220, 95, 200, "right")
-        else
-            love.graphics.setColor(0.4, 1.0, 0.4, 0.6)
-            love.graphics.printf("WEAPONS READY", 1024 - 220, 95, 200, "right")
+            wpStr2 = string.format("WEAPONS LOCK: %1.1fs", ship2.shootBlockTimer)
+            wpCol2 = {1.0, 0.5, 0.2, 0.95}
+        end
+        if ship2.hasShield then
+            wpStr2 = "[SHIELD] " .. wpStr2
+        end
+        love.graphics.setColor(wpCol2[1], wpCol2[2], wpCol2[3], wpCol2[4])
+        if ship2.hasShield then
+            love.graphics.setColor(0.3, 0.9, 1.0, 0.95) -- cyan color for shield text
+        end
+        love.graphics.printf(wpStr2, 1024 - 270, 95, 250, "right")
+        if ship2.bulletSprayTimer > 0 then
+            love.graphics.setColor(0.3, 0.9, 0.3, 0.95)
+            love.graphics.printf(string.format("SPRAY ACTIVE: %1.1fs", ship2.bulletSprayTimer), 1024 - 220, 115, 200, "right")
         end
     else
         love.graphics.setColor(1.0, 0.3, 0.3, 0.95)
@@ -560,7 +716,7 @@ function drawHUD()
 
     -- Player 2 Fuel Bar (Symmetric position on the right)
     if ship2.isAlive then
-        drawFuelBar(1024 - 140, 130, 120, 10, ship2.fuel)
+        drawFuelBar(1024 - 140, 150, 120, 10, ship2.fuel)
     end
 
     -- Controls reminder
@@ -578,6 +734,8 @@ local function resetGame()
     ship2 = Ship.new(PLATFORM_2_X, PLATFORM_2_Y - shipH / 2 + 2, CONFIG_P2)
     bullets = {}
     particles = {}
+    powerups = {}
+    powerupSpawnTimer = math.random(10, 30)
 end
 
 function love.keypressed(key)
@@ -606,9 +764,20 @@ function love.keypressed(key)
                 local spawnX = ship1.x + math.sin(ship1.angle) * hh
                 local spawnY = ship1.y - math.cos(ship1.angle) * hh
                 
-                local b = Bullet.new(spawnX, spawnY, ship1.angle, ship1.vx, ship1.vy, {0.5, 0.8, 1.0, 0.9})
-                b.owner = 1
-                table.insert(bullets, b)
+                if ship1.bulletSprayTimer > 0 then
+                    -- Fire 3 bullets in a 30-degree spread (-15, 0, +15 degrees)
+                    local angles = {ship1.angle - 0.2618, ship1.angle, ship1.angle + 0.2618}
+                    for _, ang in ipairs(angles) do
+                        local b = Bullet.new(spawnX, spawnY, ang, ship1.vx, ship1.vy, {0.5, 0.8, 1.0, 0.9})
+                        b.owner = 1
+                        table.insert(bullets, b)
+                    end
+                else
+                    -- Standard single bullet
+                    local b = Bullet.new(spawnX, spawnY, ship1.angle, ship1.vx, ship1.vy, {0.5, 0.8, 1.0, 0.9})
+                    b.owner = 1
+                    table.insert(bullets, b)
+                end
                 Audio.playShoot()
             end
         end
@@ -619,9 +788,20 @@ function love.keypressed(key)
                 local spawnX = ship2.x + math.sin(ship2.angle) * hh
                 local spawnY = ship2.y - math.cos(ship2.angle) * hh
                 
-                local b = Bullet.new(spawnX, spawnY, ship2.angle, ship2.vx, ship2.vy, {1.0, 0.5, 0.5, 0.9})
-                b.owner = 2
-                table.insert(bullets, b)
+                if ship2.bulletSprayTimer > 0 then
+                    -- Fire 3 bullets in a 30-degree spread (-15, 0, +15 degrees)
+                    local angles = {ship2.angle - 0.2618, ship2.angle, ship2.angle + 0.2618}
+                    for _, ang in ipairs(angles) do
+                        local b = Bullet.new(spawnX, spawnY, ang, ship2.vx, ship2.vy, {1.0, 0.5, 0.5, 0.9})
+                        b.owner = 2
+                        table.insert(bullets, b)
+                    end
+                else
+                    -- Standard single bullet
+                    local b = Bullet.new(spawnX, spawnY, ship2.angle, ship2.vx, ship2.vy, {1.0, 0.5, 0.5, 0.9})
+                    b.owner = 2
+                    table.insert(bullets, b)
+                end
                 Audio.playShoot()
             end
         end

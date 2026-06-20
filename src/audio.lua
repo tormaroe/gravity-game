@@ -8,6 +8,9 @@ local explosionSource = nil
 local respawnSource = nil
 local fanfareSource = nil
 local musicSource = nil
+local popSource = nil
+local powerupSource = nil
+local shieldBreakSource = nil
 
 local currentVolume = 0
 local TARGET_VOLUME = 0.25  -- Max thrust volume
@@ -348,6 +351,85 @@ function Audio.init()
         musicSource:setLooping(true)
         musicSource:setVolume(0.4)
     end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 9. Powerup Spawn Sound (Small pop sweep)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.05
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local phase = 0
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            local freq = 500 + progress * 1300
+            phase = phase + (2 * math.pi * freq) / rate
+            local amp = 1.0 - progress
+            soundData:setSample(i, math.sin(phase) * amp * 0.35)
+        end
+
+        popSource = love.audio.newSource(soundData)
+        popSource:setVolume(0.55)
+    end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 10. Powerup Pickup Sound (Digital ascending arpeggio)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.24
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local phase = 0
+
+        for i = 0, samples - 1 do
+            local t = i / rate
+            local freq = 659.25 -- E5
+            local noteIndex = math.floor(t / 0.08)
+            if noteIndex == 1 then
+                freq = 783.99 -- G5
+            elseif noteIndex >= 2 then
+                freq = 1046.50 -- C6
+            end
+            
+            phase = phase + (2 * math.pi * freq) / rate
+            local amp = 0.3 * (1.0 - t / 0.24)
+            local val = 0.6 * math.sin(phase) + 0.4 * (math.sin(phase) > 0 and 1 or -1)
+            soundData:setSample(i, val * amp)
+        end
+
+        powerupSource = love.audio.newSource(soundData)
+        powerupSource:setVolume(0.6)
+    end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 11. Shield Break Sound (High frequency digital zap/shatter)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.25
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local phase = 0
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            -- Rapidly sweep frequency down with some digital frequency modulation
+            local freq = 2000 - progress * 1500 + 400 * math.sin(2 * math.pi * 90 * progress)
+            phase = phase + (2 * math.pi * freq) / rate
+            
+            -- Blend noise with modulated sine wave for shattering feel
+            local sine = math.sin(phase)
+            local noise = math.random() * 2 - 1
+            local val = 0.5 * sine + 0.5 * noise
+            
+            -- Quick exponential decay
+            local amp = 0.45 * (1.0 - progress) ^ 2.0
+            soundData:setSample(i, val * amp)
+        end
+
+        shieldBreakSource = love.audio.newSource(soundData)
+        shieldBreakSource:setVolume(0.7)
+    end
 end
 
 function Audio.update(dt, isThrusting)
@@ -430,6 +512,27 @@ end
 function Audio.setMusicVolume(volume)
     if musicSource then
         musicSource:setVolume(volume)
+    end
+end
+
+function Audio.playPop()
+    if popSource then
+        local instance = popSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playPowerup()
+    if powerupSource then
+        local instance = powerupSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playShieldBreak()
+    if shieldBreakSource then
+        local instance = shieldBreakSource:clone()
+        instance:play()
     end
 end
 

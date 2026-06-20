@@ -45,6 +45,8 @@ function Ship.new(x, y, config)
     self.respawnTimer = 0.0
     self.shootBlockTimer = 0.0
     self.kills = 0
+    self.bulletSprayTimer = 0.0
+    self.hasShield = false
 
     return self
 end
@@ -57,8 +59,9 @@ function Ship:update(dt)
         return
     end
 
-    -- Decrement shooting block timer
+    -- Decrement timers
     self.shootBlockTimer = math.max(self.shootBlockTimer - dt, 0)
+    self.bulletSprayTimer = math.max(self.bulletSprayTimer - dt, 0)
 
     local GRAVITY = 120  -- pixels per second^2 downward (lowered for easier maneuvering)
 
@@ -253,6 +256,19 @@ function Ship:draw()
 
     love.graphics.push()
     love.graphics.translate(self.x, self.y)
+
+    -- Draw shield (if active) before rotation so it stays unrotated and centered
+    if self.hasShield then
+        local pulse = 1.0 + 0.08 * math.sin(love.timer.getTime() * 10)
+        -- Glow outer ring
+        love.graphics.setColor(0.2, 0.85, 1.0, 0.22)
+        love.graphics.circle("fill", 0, 0, 18 * pulse)
+        -- Solid line circle
+        love.graphics.setLineWidth(1.8)
+        love.graphics.setColor(0.3, 0.9, 1.0, 0.85)
+        love.graphics.circle("line", 0, 0, 18 * pulse)
+    end
+
     love.graphics.rotate(self.angle)
 
     -- Ship body (a slightly tapered rectangle)
