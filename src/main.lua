@@ -222,6 +222,17 @@ function love.update(dt)
     local thrusting1 = ship1.isAlive and ship1.thrusting
     local thrusting2 = ship2.isAlive and ship2.thrusting
     Audio.update(dt, thrusting1 or thrusting2)
+
+    -- 7. Update background stars (slow parallax drift leftward)
+    local starBaseSpeed = 4.5
+    for _, s in ipairs(starfield) do
+        -- Larger/brighter stars move faster than smaller/dimmer ones for a subtle parallax 3D effect
+        s.x = s.x - (s.r * starBaseSpeed) * dt
+        if s.x < 0 then
+            s.x = s.x + 1024
+            s.y = math.random(0, 768)
+        end
+    end
 end
 
 function love.draw()
