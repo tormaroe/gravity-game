@@ -38,7 +38,7 @@ function Ship.new(x, y, config)
 end
 
 function Ship:update(dt, terrain)
-    local GRAVITY = 200  -- pixels per second^2 downward
+    local GRAVITY = 120  -- pixels per second^2 downward (lowered for easier maneuvering)
 
     -- ── Rotation ─────────────────────────────────────────────
     if love.keyboard.isDown(self.key_left) then

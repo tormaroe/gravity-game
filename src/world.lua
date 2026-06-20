@@ -21,6 +21,9 @@ function World.new()
         -- Main ground floor
         { x = 0,    y = SH - 40, w = SW,  h = 40,   color = COL_GROUND },
 
+        -- Roof/Ceiling
+        { x = 0,    y = 0,       w = SW,  h = 20,   color = COL_ROCK   },
+
         -- Left wall
         { x = 0,    y = 0,       w = 20,  h = SH,   color = COL_ROCK   },
         -- Right wall

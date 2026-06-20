@@ -5,7 +5,7 @@ local Audio = require("audio")
 
 local Bullet = {}
 local BULLET_SPEED   = 550  -- speed relative to ship muzzle
-local BULLET_GRAVITY = 120  -- lower than ship gravity so they fly flatter
+local BULLET_GRAVITY = 60   -- lower than ship gravity so they fly flatter
 local TRAILING_TIME  = 0.012 -- length of tracer effect in seconds
 
 function Bullet.new(startX, startY, angle, shipVx, shipVy, color)
