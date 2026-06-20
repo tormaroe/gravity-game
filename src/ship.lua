@@ -153,21 +153,42 @@ function Ship:collide(terrain)
             if minOverlap == overlapT then
                 -- Ship bottom hit top of terrain — land / bounce (push ship up)
                 self.y = ry1 - hh
-                if self.vy > 0 then
+                if self.vy > 25 then
+                    self.vy = -self.vy * 0.35  -- Speed-dependent bounce
+                    isLanded = false
+                    Audio.playHit()
+                else
                     self.vx = self.vx * 0.7  -- landing friction
                     self.vy = 0
+                    isLanded = true
                 end
-                isLanded = true
             elseif minOverlap == overlapB then
                 -- Ship top hit bottom of terrain — ceiling collision (push ship down)
                 self.y = ry2 + hh
-                if self.vy < 0 then self.vy = 0 end
+                if self.vy < -25 then
+                    self.vy = -self.vy * 0.35  -- Bounce down
+                    Audio.playHit()
+                else
+                    self.vy = 0
+                end
             elseif minOverlap == overlapL then
+                -- Ship right side hit left wall of terrain
                 self.x = rx1 - hw
-                if self.vx > 0 then self.vx = 0 end
+                if self.vx > 25 then
+                    self.vx = -self.vx * 0.35  -- Bounce left
+                    Audio.playHit()
+                else
+                    self.vx = 0
+                end
             elseif minOverlap == overlapR then
+                -- Ship left side hit right wall of terrain
                 self.x = rx2 + hw
-                if self.vx < 0 then self.vx = 0 end
+                if self.vx < -25 then
+                    self.vx = -self.vx * 0.35  -- Bounce right
+                    Audio.playHit()
+                else
+                    self.vx = 0
+                end
             end
 
             -- Update bounding box after each resolution so multi-surface
@@ -187,22 +208,41 @@ function Ship:collide(terrain)
 
     if self.x < minX then
         self.x = minX
-        if self.vx < 0 then self.vx = 0 end
+        if self.vx < -25 then
+            self.vx = -self.vx * 0.35
+            Audio.playHit()
+        else
+            self.vx = 0
+        end
     elseif self.x > maxX then
         self.x = maxX
-        if self.vx > 0 then self.vx = 0 end
+        if self.vx > 25 then
+            self.vx = -self.vx * 0.35
+            Audio.playHit()
+        else
+            self.vx = 0
+        end
     end
 
     if self.y < minY then
         self.y = minY
-        if self.vy < 0 then self.vy = 0 end
-    elseif self.y > maxY then
-        self.y = maxY
-        if self.vy > 0 then
-            self.vx = self.vx * 0.7  -- landing friction on ground
+        if self.vy < -25 then
+            self.vy = -self.vy * 0.35
+            Audio.playHit()
+        else
             self.vy = 0
         end
-        isLanded = true
+    elseif self.y > maxY then
+        self.y = maxY
+        if self.vy > 25 then
+            self.vy = -self.vy * 0.35
+            isLanded = false
+            Audio.playHit()
+        else
+            self.vx = self.vx * 0.7  -- landing friction on ground
+            self.vy = 0
+            isLanded = true
+        end
     end
 
     self.landed = isLanded

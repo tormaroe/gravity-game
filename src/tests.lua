@@ -42,9 +42,9 @@ function Tests.run()
         ship:collide(terrain)
 
         assert_eq(ship.y, 628 - 11, "Ship should be pushed up to y=617")
-        assert_eq(ship.landed, true, "Ship should be marked as landed")
-        assert_eq(ship.vy, 0, "Vertical velocity should be set to 0 on landing")
-        assert_eq(ship.vx, 7, "Horizontal velocity should be reduced by friction (10 * 0.7 = 7)")
+        assert_eq(ship.landed, false, "Ship should bounce and NOT be marked as landed when vy > 25")
+        assert_eq(ship.vy, -50 * 0.35, "Vertical velocity should be reflected by 0.35 coefficient")
+        assert_eq(ship.vx, 10, "Horizontal velocity should remain unchanged because it bounced")
     end
 
     -- ────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ function Tests.run()
 
         assert_eq(ship.y, 646 + 11, "Ship should be pushed down to y=657")
         assert_eq(ship.landed, false, "Ship should not be marked as landed")
-        assert_eq(ship.vy, 0, "Vertical velocity should be set to 0 when hitting ceiling")
+        assert_eq(ship.vy, 50 * 0.35, "Vertical velocity should bounce down with 0.35 coefficient")
     end
 
     -- ────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ function Tests.run()
         ship:collide(terrain)
 
         assert_eq(ship.x, 180 - 7, "Ship should be pushed left to x=173")
-        assert_eq(ship.vx, 0, "Horizontal velocity should be set to 0 on wall hit")
+        assert_eq(ship.vx, -30 * 0.35, "Horizontal velocity should bounce left with 0.35 coefficient")
     end
 
     -- ────────────────────────────────────────────────────────────────
