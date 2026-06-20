@@ -1,0 +1,5 @@
+# Standalone build outputs
+build/
+
+# Logs and temporary files
+*.log
