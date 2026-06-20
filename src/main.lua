@@ -142,6 +142,7 @@ function love.load(arg)
 
     -- Initialize procedural audio engine
     Audio.init()
+    Audio.playMusic()
 end
 
 function love.update(dt)
@@ -217,6 +218,7 @@ function love.update(dt)
                         if ship2.kills >= 5 then
                             gameState = "GAMEOVER"
                             winnerName = "PLAYER 2 (RED)"
+                            Audio.stopMusic()
                             Audio.playFanfare()
                         end
                     end
@@ -241,6 +243,7 @@ function love.update(dt)
                         if ship1.kills >= 5 then
                             gameState = "GAMEOVER"
                             winnerName = "PLAYER 1 (BLUE)"
+                            Audio.stopMusic()
                             Audio.playFanfare()
                         end
                     end
@@ -587,6 +590,7 @@ function love.keypressed(key)
         if key == "return" or key == "kpenter" then
             resetGame()
             gameState = "STARTUP"
+            Audio.playMusic()
         end
     elseif gameState == "PLAYING" then
         if key == "r" then

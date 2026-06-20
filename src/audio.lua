@@ -7,11 +7,13 @@ local clickSource = nil
 local explosionSource = nil
 local respawnSource = nil
 local fanfareSource = nil
+local musicSource = nil
 
 local currentVolume = 0
 local TARGET_VOLUME = 0.25  -- Max thrust volume
 local FADE_IN_SPEED = 8.0   -- Volume change per second
 local FADE_OUT_SPEED = 4.0  -- Slower fade out for escaping gas realism
+
 
 function Audio.init()
     -- Only initialize if we have love.sound available (prevents issues in headless testing if audio is disabled)
@@ -229,6 +231,123 @@ function Audio.init()
         fanfareSource = love.audio.newSource(soundData)
         fanfareSource:setVolume(0.8)
     end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 8. Background Music Loop (C64 SID Chip Style)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 7.68
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+
+        local phaseArp = 0
+        local phaseBass = 0
+        local phaseKick = 0
+        local phaseSnare = 0
+
+        -- Tempo: 125 BPM
+        local bpm = 125
+        local beatLen = 60 / bpm -- 0.48s
+        local stepLen = beatLen / 4 -- 0.12s (sixteenth note)
+
+        for i = 0, samples - 1 do
+            local t = i / rate
+            
+            -- Determine current measure (0 to 3)
+            local measure = math.floor(t / (beatLen * 4)) % 4
+            
+            -- Chords: Am, F, C, G
+            -- Frequencies for Arpeggio
+            local chord = {}
+            local bassRoot = 110.0 -- Default A2
+            
+            if measure == 0 then
+                -- Am: A3 (220.00), C4 (261.63), E4 (329.63), A4 (440.00)
+                chord = {220.00, 261.63, 329.63, 440.00}
+                bassRoot = 110.00 -- A2
+            elseif measure == 1 then
+                -- F: F3 (174.61), A3 (220.00), C4 (261.63), F4 (349.23)
+                chord = {174.61, 220.00, 261.63, 349.23}
+                bassRoot = 87.31 -- F2
+            elseif measure == 2 then
+                -- C: C3 (130.81), E3 (164.81), G3 (196.00), C4 (261.63)
+                chord = {130.81, 164.81, 196.00, 261.63}
+                bassRoot = 130.81 -- C3
+            else
+                -- G: G3 (196.00), B3 (246.94), D4 (293.66), G4 (392.00)
+                chord = {196.00, 246.94, 293.66, 392.00}
+                bassRoot = 98.00 -- G2
+            end
+
+            -- 1. Arpeggiator Channel (Pulse wave with PWM)
+            -- Speed: 50Hz arpeggio (every 0.02s)
+            local arpIndex = math.floor(t / 0.02) % 4 + 1
+            local freqArp = chord[arpIndex]
+            phaseArp = phaseArp + (2 * math.pi * freqArp) / rate
+            
+            -- Pulse width sweeps via LFO (0.5Hz)
+            local lfo = 0.5 + 0.3 * math.sin(2 * math.pi * 0.5 * t)
+            local valArp = (phaseArp % (2 * math.pi) < lfo * 2 * math.pi) and 1.0 or -1.0
+            
+            -- Arpeggio envelope (slight decay on each arpeggio tick to make it pluck)
+            local arpTickTime = t % 0.02
+            local arpAmp = 0.18 * (1.0 - arpTickTime / 0.02)
+
+            -- 2. Bassline Channel (Triangle wave)
+            -- Rhythm: 16th notes. Bass plays root on step 0, 4, 8, 12, octave on 2, 6, 10, 14, rest on odds
+            local step = math.floor(t / stepLen) % 16
+            local noteTime = t % stepLen
+            
+            local freqBass = 0
+            local bassAmp = 0
+            
+            if step % 2 == 0 then
+                if step % 4 == 0 then
+                    freqBass = bassRoot -- Root
+                else
+                    freqBass = bassRoot * 2.0 -- Octave up
+                end
+                -- Bass envelope: fast decay
+                bassAmp = 0.22 * math.max(0, 1.0 - noteTime / (stepLen * 0.75)) ^ 1.5
+            end
+            
+            phaseBass = phaseBass + (2 * math.pi * freqBass) / rate
+            -- Triangle wave formula
+            local tri = math.abs((phaseBass % (2 * math.pi)) / math.pi - 1.0) * 2.0 - 1.0
+            local valBass = tri * bassAmp
+
+            -- 3. Drums Channel (Kick and Snare)
+            local beatStep = math.floor(t / beatLen) % 4 -- 4 beats per measure
+            local beatTime = t % beatLen
+            
+            local valDrum = 0
+            if beatStep == 0 or beatStep == 2 then
+                -- Kick: frequency sweep down from 140Hz to 40Hz
+                if beatTime < 0.10 then
+                    local kickFreq = 140.0 - (beatTime / 0.10) * 100.0
+                    phaseKick = phaseKick + (2 * math.pi * kickFreq) / rate
+                    local kickAmp = math.max(0, 1.0 - beatTime / 0.10) ^ 1.5
+                    valDrum = math.sin(phaseKick) * kickAmp * 0.35
+                end
+            elseif beatStep == 1 or beatStep == 3 then
+                -- Snare: high pass noise burst
+                if beatTime < 0.12 then
+                    local snareAmp = math.max(0, 1.0 - beatTime / 0.12) ^ 2.0
+                    -- Generates random value (high frequency noise)
+                    local noiseVal = math.random() * 2.0 - 1.0
+                    valDrum = noiseVal * snareAmp * 0.22
+                end
+            end
+
+            -- Mix channels together
+            local mixed = valBass + (valArp * arpAmp) + valDrum
+            soundData:setSample(i, mixed)
+        end
+
+        musicSource = love.audio.newSource(soundData)
+        musicSource:setLooping(true)
+        musicSource:setVolume(0.4)
+    end
 end
 
 function Audio.update(dt, isThrusting)
@@ -287,6 +406,30 @@ function Audio.playFanfare()
     if fanfareSource then
         local instance = fanfareSource:clone()
         instance:play()
+    end
+end
+
+function Audio.playMusic()
+    if musicSource then
+        musicSource:play()
+    end
+end
+
+function Audio.stopMusic()
+    if musicSource then
+        musicSource:stop()
+    end
+end
+
+function Audio.pauseMusic()
+    if musicSource then
+        musicSource:pause()
+    end
+end
+
+function Audio.setMusicVolume(volume)
+    if musicSource then
+        musicSource:setVolume(volume)
     end
 end
 
