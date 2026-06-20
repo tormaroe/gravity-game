@@ -1,7 +1,5 @@
--- tests.lua
--- Unit tests for ship collision logic.
-
 local Ship = require("ship")
+local Bullet = require("bullet")
 
 local Tests = {}
 
@@ -81,6 +79,31 @@ function Tests.run()
 
         assert_eq(ship.x, 180 - 7, "Ship should be pushed left to x=173")
         assert_eq(ship.vx, 0, "Horizontal velocity should be set to 0 on wall hit")
+    end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- Test 4: Bullet speed and direction initialization
+    -- ────────────────────────────────────────────────────────────────
+    do
+        -- Fire bullet facing straight up (angle = 0)
+        -- Ship moving with vx=20, vy=10
+        -- Muzzle velocity is 550 straight up (vx_rel = 0, vy_rel = -550)
+        local bullet = Bullet.new(100, 200, 0, 20, 10)
+        assert_eq(bullet.vx, 20, "Bullet vx should match ship vx when angle=0")
+        assert_eq(bullet.vy, 10 - 550, "Bullet vy should incorporate ship vy and muzzle speed")
+        assert_eq(bullet.isAlive, true, "New bullet should be alive")
+    end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- Test 5: Bullet terrain collision
+    -- ────────────────────────────────────────────────────────────────
+    do
+        -- Place bullet just above the platform, moving down
+        -- Top of platform is y=628
+        -- Set angle to math.pi (pointing down) so vx=0, vy=550
+        local bullet = Bullet.new(200, 626, math.pi, 0, 0)
+        bullet:update(0.01, terrain) -- moves it down (y ≈ 631.5), inside platform
+        assert_eq(bullet.isAlive, false, "Bullet should be dead after hitting terrain")
     end
 
     print("========================================")

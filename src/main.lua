@@ -4,11 +4,13 @@
 local Ship  = require("ship")
 local World = require("world")
 local Audio = require("audio")
+local Bullet = require("bullet")
 
 -- ── State ──────────────────────────────────────────────────────────────────
 local world
 local ship
 local starfield   -- background stars for ambiance
+local bullets = {} -- active projectiles
 
 -- Platform spawn position (centre of the starting platform)
 local PLATFORM_X  = 180 + 80   -- platform.x + platform.w/2
@@ -67,6 +69,15 @@ function love.update(dt)
     dt = math.min(dt, 1/30)
     ship:update(dt, world:getRects())
 
+    -- Update active projectiles
+    for i = #bullets, 1, -1 do
+        local b = bullets[i]
+        b:update(dt, world:getRects())
+        if not b.isAlive then
+            table.remove(bullets, i)
+        end
+    end
+
     -- Update procedural audio state
     Audio.update(dt, ship.thrusting)
 end
@@ -84,6 +95,11 @@ function love.draw()
 
     -- ── World geometry ───────────────────────────────────────
     world:draw()
+
+    -- ── Projectiles ──────────────────────────────────────────
+    for _, b in ipairs(bullets) do
+        b:draw()
+    end
 
     -- ── Ship ─────────────────────────────────────────────────
     ship:draw()
@@ -115,7 +131,7 @@ function drawHUD()
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)
     love.graphics.printf(
-        "A / D  rotate     W  thrust     R  reset",
+        "A / D  rotate     W  thrust     Space  fire     R  reset",
         0, 748, 1024, "center"
     )
     love.graphics.setColor(1, 1, 1)
@@ -126,6 +142,17 @@ function love.keypressed(key)
         -- Soft reset: put ship back on the platform
         local shipH = 22
         ship = Ship.new(PLATFORM_X, PLATFORM_Y - shipH / 2 + 2)
+        bullets = {}
+    end
+    if key == "space" then
+        -- Spawn bullet from the nose of the ship
+        local hh = ship.h / 2
+        local spawnX = ship.x + math.sin(ship.angle) * hh
+        local spawnY = ship.y - math.cos(ship.angle) * hh
+        
+        local b = Bullet.new(spawnX, spawnY, ship.angle, ship.vx, ship.vy)
+        table.insert(bullets, b)
+        Audio.playShoot()
     end
     if key == "escape" then
         love.event.quit()

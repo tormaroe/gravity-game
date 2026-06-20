@@ -1,10 +1,9 @@
--- audio.lua
--- Procedural audio generation for the gravity ship thrusters.
--- Generates filtered white noise (band-pass filtered to create a gas-hissing sound).
-
 local Audio = {}
 
 local thrustSource = nil
+local shootSource = nil
+local hitSource = nil
+
 local currentVolume = 0
 local TARGET_VOLUME = 0.25  -- Max thrust volume
 local FADE_IN_SPEED = 8.0   -- Volume change per second
@@ -17,55 +16,113 @@ function Audio.init()
     end
 
     local rate = 44100
-    local seconds = 0.35 -- Short looping buffer
-    local samples = math.floor(rate * seconds)
-    
-    local soundData = love.sound.newSoundData(samples, rate, 16, 1)
 
-    -- Filter variables for a custom Band-Pass Filter (BPF)
-    -- High pass + low pass to emulate pressurized gas escaping.
-    local lp_prev = 0
-    local hp_prev = 0
+    -- ────────────────────────────────────────────────────────────────
+    -- 1. Thrust Sound (Filtered White Noise)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.35 -- Short looping buffer
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
 
-    for i = 0, samples - 1 do
-        local noise = math.random() * 2 - 1
+        local lp_prev = 0
+        local hp_prev = 0
 
-        -- 1. Low-Pass Filter: smooths out digital harshness
-        local lp = lp_prev * 0.45 + noise * 0.55
-        lp_prev = lp
+        for i = 0, samples - 1 do
+            local noise = math.random() * 2 - 1
+            -- Low-pass Filter
+            local lp = lp_prev * 0.45 + noise * 0.55
+            lp_prev = lp
+            -- High-pass Filter
+            local hp = lp - hp_prev
+            hp_prev = lp
+            -- Normalize
+            soundData:setSample(i, hp * 0.8)
+        end
 
-        -- 2. High-Pass Filter: removes deep rumbling sub-bass, keeping the "hiss"
-        local hp = lp - hp_prev
-        hp_prev = lp
-
-        -- Normalize and write to buffer
-        soundData:setSample(i, hp * 0.8)
+        thrustSource = love.audio.newSource(soundData)
+        thrustSource:setLooping(true)
+        thrustSource:setVolume(0)
+        thrustSource:play()
     end
 
-    -- Create audio source
-    thrustSource = love.audio.newSource(soundData)
-    thrustSource:setLooping(true)
-    thrustSource:setVolume(0)
-    thrustSource:play() -- Play immediately, control volume dynamically
+    -- ────────────────────────────────────────────────────────────────
+    -- 2. Shoot Sound (Synth Laser frequency sweep)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.12
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local phase = 0
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            -- Sweep frequency down from 900Hz to 200Hz
+            local freq = 900 - progress * 700
+            phase = phase + (2 * math.pi * freq) / rate
+            -- Sine wave with linear decay envelope
+            local amp = 1.0 - progress
+            soundData:setSample(i, math.sin(phase) * amp * 0.3)
+        end
+
+        shootSource = love.audio.newSource(soundData)
+        shootSource:setVolume(0.5)
+    end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 3. Hit/Explosion Sound (Decaying Low-Pass Noise Burst)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.18
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local lp_prev = 0
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            local noise = math.random() * 2 - 1
+            -- Low-pass sweep (gets deeper/muffled over time)
+            local filterFactor = 0.15 * (1.0 - progress) + 0.02 * progress
+            local lp = lp_prev * (1.0 - filterFactor) + noise * filterFactor
+            lp_prev = lp
+            -- Snappy exponential decay envelope
+            local amp = (1.0 - progress) ^ 2.5
+            soundData:setSample(i, lp * amp * 0.5)
+        end
+
+        hitSource = love.audio.newSource(soundData)
+        hitSource:setVolume(0.6)
+    end
 end
 
 function Audio.update(dt, isThrusting)
     if not thrustSource then return end
 
     if isThrusting then
-        -- Fade in
         currentVolume = math.min(currentVolume + FADE_IN_SPEED * dt, TARGET_VOLUME)
     else
-        -- Fade out
         currentVolume = math.max(currentVolume - FADE_OUT_SPEED * dt, 0)
     end
 
     thrustSource:setVolume(currentVolume)
     
-    -- Dynamically modulate pitch slightly to simulate pressure variance
     if currentVolume > 0 then
         local pitchModulation = 0.95 + (currentVolume / TARGET_VOLUME) * 0.1 + (math.random() - 0.5) * 0.03
         thrustSource:setPitch(pitchModulation)
+    end
+end
+
+function Audio.playShoot()
+    if shootSource then
+        local instance = shootSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playHit()
+    if hitSource then
+        local instance = hitSource:clone()
+        instance:play()
     end
 end
 
