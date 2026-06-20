@@ -131,6 +131,36 @@ function Tests.run()
         assert_eq(ship2.vx, 50 * 0.8, "Ship 2 vx should bounce to 40")
     end
 
+    -- ────────────────────────────────────────────────────────────────
+    -- Test 7: Propellant depletion and regeneration
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local ship = Ship.new(100, 100)
+        assert_eq(ship.fuel, 1.0, "New ship starts with 100% fuel")
+
+        -- Mock love.keyboard.isDown to simulate thrust key is active
+        local original_isDown = love.keyboard.isDown
+        love.keyboard.isDown = function(key)
+            if key == "w" then return true end
+            return false
+        end
+
+        -- Update by 2 seconds: fuel should deplete to 1.0 - 2 * 0.2 = 0.6
+        ship:update(2.0)
+        assert_eq(ship.fuel, 0.6, "Fuel depletes by 20% per second of thrust")
+        assert_eq(ship.thrusting, true, "Ship is thrusting while fuel is available")
+
+        -- Mock thrust key is NOT active
+        love.keyboard.isDown = function(key) return false end
+
+        -- Update by 3 seconds: fuel should regenerate to 0.6 + 3 * 0.1 = 0.9
+        ship:update(3.0)
+        assert_eq(ship.fuel, 0.9, "Fuel regenerates by 10% per second of inactivity")
+        assert_eq(ship.thrusting, false, "Ship stops thrusting when key is released")
+
+        love.keyboard.isDown = original_isDown
+    end
+
     print("========================================")
     print(string.format("TEST RESULTS: %d passed, %d failed", passed, failed))
     print("========================================")

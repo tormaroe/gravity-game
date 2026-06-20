@@ -36,6 +36,10 @@ function Ship.new(x, y, config)
     self.col_outline = color.outline or {0.9, 1.0, 1.0}
     self.col_cockpit = color.cockpit or {0.2, 0.5, 0.9}
 
+    -- Propellant / Fuel state
+    self.fuel = 1.0             -- 1.0 = 100% full
+    self.click_cooldown = 0.0   -- failure sound timer
+
     return self
 end
 
@@ -50,15 +54,44 @@ function Ship:update(dt)
         self.angle = self.angle + ROTATE_SPEED * dt
     end
 
-    -- ── Thrust ───────────────────────────────────────────────
-    self.thrusting = love.keyboard.isDown(self.key_thrust)
+    -- ── Thrust & Propellant Logic ────────────────────────────
+    local isThrustDown = love.keyboard.isDown(self.key_thrust)
+
+    if self.click_cooldown > 0 then
+        self.click_cooldown = self.click_cooldown - dt
+    end
+
+    if isThrustDown then
+        if self.fuel > 0 then
+            -- Deplete fuel: empty in 5 seconds (1/5 per sec)
+            self.fuel = math.max(self.fuel - (1.0 / 5.0) * dt, 0)
+            self.thrusting = true
+            
+            -- If fuel just ran out, kill thrusting
+            if self.fuel <= 0 then
+                self.thrusting = false
+            end
+        else
+            self.thrusting = false
+            -- Play engine failure click sound once every 0.6 seconds
+            if self.click_cooldown <= 0 then
+                Audio.playClick()
+                self.click_cooldown = 0.6
+            end
+        end
+    else
+        self.thrusting = false
+        -- Regenerate fuel when not thrusting: full in 10 seconds (1/10 per sec)
+        self.fuel = math.min(self.fuel + (1.0 / 10.0) * dt, 1.0)
+    end
+
     if self.thrusting then
         -- angle=0 means nose up; thrust in -sin/+cos of angle direction
         local tx = math.sin(self.angle) * THRUST_FORCE
         local ty = -math.cos(self.angle) * THRUST_FORCE
         self.vx = self.vx + tx * dt
         self.vy = self.vy + ty * dt
-        -- Note: landed is determined solely by collision each frame
+        self.landed = false -- liftoff
     end
 
     -- ── Gravity (skip if resting on ground) ──────────────────

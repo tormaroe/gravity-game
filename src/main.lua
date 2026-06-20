@@ -169,6 +169,31 @@ function love.draw()
     love.graphics.draw(gameCanvas, dx, dy, 0, scale, scale)
 end
 
+-- Helper to draw a stylized fuel gauge bar
+local function drawFuelBar(x, y, w, h, fuel)
+    -- Border outline
+    love.graphics.setColor(0.4, 0.4, 0.4, 0.8)
+    love.graphics.rectangle("line", x, y, w, h)
+    
+    -- Color based on level
+    if fuel > 0.5 then
+        love.graphics.setColor(0.3, 0.9, 0.3, 0.85) -- Green
+    elseif fuel > 0.2 then
+        love.graphics.setColor(0.9, 0.9, 0.2, 0.85) -- Yellow
+    else
+        -- Pulsating red for critical low fuel alert
+        local alpha = 0.5 + 0.4 * math.sin(love.timer.getTime() * 15)
+        love.graphics.setColor(1.0, 0.2, 0.2, alpha) -- Red
+    end
+    
+    -- Fill the bar representing current propellant levels
+    love.graphics.rectangle("fill", x + 1, y + 1, (w - 2) * fuel, h - 2)
+    
+    -- Text label
+    love.graphics.setColor(0.8, 0.8, 0.8, 0.8)
+    love.graphics.printf(string.format("FUEL %3.0f%%", fuel * 100), x, y - 15, w, "left")
+end
+
 function drawHUD()
     love.graphics.setLineWidth(1)
 
@@ -187,6 +212,9 @@ function drawHUD()
     love.graphics.setColor(sc1[1], sc1[2], sc1[3], 0.9)
     love.graphics.printf(status1, 20, 75, 200, "left")
 
+    -- Player 1 Fuel Bar
+    drawFuelBar(20, 115, 120, 10, ship1.fuel)
+
     -- ── Player 2 (Red) Readout (Right side) ──────────────────
     love.graphics.setColor(1.0, 0.5, 0.5, 0.9) -- Red HUD color
     local speed2 = math.sqrt(ship2.vx * ship2.vx + ship2.vy * ship2.vy)
@@ -201,6 +229,9 @@ function drawHUD()
     local sc2 = ship2.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
     love.graphics.setColor(sc2[1], sc2[2], sc2[3], 0.9)
     love.graphics.printf(status2, 1024 - 220, 75, 200, "right")
+
+    -- Player 2 Fuel Bar (Symmetric position on the right)
+    drawFuelBar(1024 - 140, 115, 120, 10, ship2.fuel)
 
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)

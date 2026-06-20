@@ -3,6 +3,7 @@ local Audio = {}
 local thrustSource = nil
 local shootSource = nil
 local hitSource = nil
+local clickSource = nil
 
 local currentVolume = 0
 local TARGET_VOLUME = 0.25  -- Max thrust volume
@@ -93,6 +94,31 @@ function Audio.init()
         hitSource = love.audio.newSource(soundData)
         hitSource:setVolume(0.6)
     end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 4. Engine Click/Failure Sound (Stuttering click/ignition ticks)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.08
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            local amp = 0
+            if progress < 0.25 then
+                local p = progress / 0.25
+                amp = (1.0 - p) * math.sin(2 * math.pi * 3000 * (i / rate))
+            elseif progress >= 0.35 and progress < 0.6 then
+                local p = (progress - 0.35) / 0.25
+                amp = (1.0 - p) * math.sin(2 * math.pi * 2600 * ((i - 0.35 * samples) / rate))
+            end
+            soundData:setSample(i, amp * 0.12)
+        end
+
+        clickSource = love.audio.newSource(soundData)
+        clickSource:setVolume(0.4)
+    end
 end
 
 function Audio.update(dt, isThrusting)
@@ -122,6 +148,13 @@ end
 function Audio.playHit()
     if hitSource then
         local instance = hitSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playClick()
+    if clickSource then
+        local instance = clickSource:clone()
         instance:play()
     end
 end
