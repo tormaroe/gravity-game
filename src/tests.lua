@@ -106,6 +106,31 @@ function Tests.run()
         assert_eq(bullet.isAlive, false, "Bullet should be dead after hitting terrain")
     end
 
+    -- ────────────────────────────────────────────────────────────────
+    -- Test 6: Ship-to-ship collision resolution and bounce
+    -- ────────────────────────────────────────────────────────────────
+    do
+        -- Create two ships overlapping horizontally (hw=7, hh=11)
+        -- Ship 1: x = 100, y = 100, vx = 50 (moving right)
+        -- Ship 2: x = 110, y = 100, vx = -30 (moving left)
+        -- Overlap on X = (100 + 7) - (110 - 7) = 107 - 103 = 4px
+        local ship1 = Ship.new(100, 100)
+        ship1.vx = 50
+        local ship2 = Ship.new(110, 100)
+        ship2.vx = -30
+        
+        Ship.resolveCollision(ship1, ship2)
+        
+        -- Verification:
+        -- 1. Separated by 2px each (overlap/2)
+        assert_eq(ship1.x, 100 - 2, "Ship 1 should be pushed left to x=98")
+        assert_eq(ship2.x, 110 + 2, "Ship 2 should be pushed right to x=112")
+        
+        -- 2. Velocities swapped and multiplied by bounce coeff (0.8)
+        assert_eq(ship1.vx, -30 * 0.8, "Ship 1 vx should bounce to -24")
+        assert_eq(ship2.vx, 50 * 0.8, "Ship 2 vx should bounce to 40")
+    end
+
     print("========================================")
     print(string.format("TEST RESULTS: %d passed, %d failed", passed, failed))
     print("========================================")

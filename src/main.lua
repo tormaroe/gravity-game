@@ -102,8 +102,16 @@ function love.update(dt)
     -- Cap dt to avoid huge jumps when window is moved / unfocused
     dt = math.min(dt, 1/30)
     
-    ship1:update(dt, world:getRects())
-    ship2:update(dt, world:getRects())
+    -- 1. Integrate physics movement
+    ship1:update(dt)
+    ship2:update(dt)
+
+    -- 2. Resolve ship-to-ship collisions (pushes them apart)
+    Ship.resolveCollision(ship1, ship2)
+
+    -- 3. Resolve terrain collisions last (ensures they are always pushed back inside the walls)
+    ship1:collide(world:getRects())
+    ship2:collide(world:getRects())
 
     -- Update active projectiles
     for i = #bullets, 1, -1 do

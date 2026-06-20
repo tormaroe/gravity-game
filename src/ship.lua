@@ -1,6 +1,8 @@
 -- ship.lua
 -- Represents the player's ship with physics state.
 
+local Audio = require("audio")
+
 local Ship = {}
 Ship.__index = Ship
 
@@ -37,7 +39,7 @@ function Ship.new(x, y, config)
     return self
 end
 
-function Ship:update(dt, terrain)
+function Ship:update(dt)
     local GRAVITY = 120  -- pixels per second^2 downward (lowered for easier maneuvering)
 
     -- ── Rotation ─────────────────────────────────────────────
@@ -71,9 +73,6 @@ function Ship:update(dt, terrain)
     -- ── Integration ──────────────────────────────────────────
     self.x = self.x + self.vx * dt
     self.y = self.y + self.vy * dt
-
-    -- ── Terrain collision (axis-aligned bounding box) ─────────
-    self:collide(terrain)
 end
 
 -- Simple AABB collision: ship bounding box vs terrain rectangles.
@@ -129,6 +128,34 @@ function Ship:collide(terrain)
         end
     end
 
+    -- ── Hard Screen Boundaries Clamping (Left/Right Walls, Roof, Ground) ─────
+    -- Outer borders are 20px wall (left/right/ceiling) and 40px ground.
+    -- Clamping coordinates prevents ships from tunneling outside the play field.
+    local minX = 20 + hw
+    local maxX = 1024 - 20 - hw
+    local minY = 20 + hh
+    local maxY = 768 - 40 - hh
+
+    if self.x < minX then
+        self.x = minX
+        if self.vx < 0 then self.vx = 0 end
+    elseif self.x > maxX then
+        self.x = maxX
+        if self.vx > 0 then self.vx = 0 end
+    end
+
+    if self.y < minY then
+        self.y = minY
+        if self.vy < 0 then self.vy = 0 end
+    elseif self.y > maxY then
+        self.y = maxY
+        if self.vy > 0 then
+            self.vx = self.vx * 0.7  -- landing friction on ground
+            self.vy = 0
+        end
+        isLanded = true
+    end
+
     self.landed = isLanded
 end
 
@@ -182,6 +209,70 @@ function Ship:draw()
 
     love.graphics.pop()
     love.graphics.setColor(1, 1, 1)
+end
+
+-- Resolves axis-aligned bounding box collision between two ships.
+-- Adjusts their coordinates to prevent clipping and performs an elastic bounce (swapping velocities with restitution).
+function Ship.resolveCollision(s1, s2)
+    local hw = s1.w / 2
+    local hh = s1.h / 2
+    
+    local s1x1, s1y1 = s1.x - hw, s1.y - hh
+    local s1x2, s1y2 = s1.x + hw, s1.y + hh
+    
+    local s2x1, s2y1 = s2.x - hw, s2.y - hh
+    local s2x2, s2y2 = s2.x + hw, s2.y + hh
+    
+    -- Check overlap
+    if s1x2 > s2x1 and s1x1 < s2x2 and s1y2 > s2y1 and s1y1 < s2y2 then
+        local overlapL = s1x2 - s2x1
+        local overlapR = s2x2 - s1x1
+        local overlapT = s1y2 - s2y1
+        local overlapB = s2y2 - s1y1
+        
+        local minOverlap = math.min(overlapL, overlapR, overlapT, overlapB)
+        local bounceCoeff = 0.8  -- Coefficient of restitution (energy retention)
+        
+        if minOverlap == overlapL then
+            -- s1 is left of s2: push s1 left, s2 right
+            s1.x = s1.x - overlapL / 2
+            s2.x = s2.x + overlapL / 2
+            
+            -- Bounce horizontal velocities
+            local temp = s1.vx
+            s1.vx = s2.vx * bounceCoeff
+            s2.vx = temp * bounceCoeff
+        elseif minOverlap == overlapR then
+            -- s1 is right of s2: push s1 right, s2 left
+            s1.x = s1.x + overlapR / 2
+            s2.x = s2.x - overlapR / 2
+            
+            -- Bounce horizontal velocities
+            local temp = s1.vx
+            s1.vx = s2.vx * bounceCoeff
+            s2.vx = temp * bounceCoeff
+        elseif minOverlap == overlapT then
+            -- s1 is above s2: push s1 up, s2 down
+            s1.y = s1.y - overlapT / 2
+            s2.y = s2.y + overlapT / 2
+            
+            -- Bounce vertical velocities
+            local temp = s1.vy
+            s1.vy = s2.vy * bounceCoeff
+            s2.vy = temp * bounceCoeff
+        elseif minOverlap == overlapB then
+            -- s1 is below s2: push s1 down, s2 up
+            s1.y = s1.y + overlapB / 2
+            s2.y = s2.y - overlapB / 2
+            
+            -- Bounce vertical velocities
+            local temp = s1.vy
+            s1.vy = s2.vy * bounceCoeff
+            s2.vy = temp * bounceCoeff
+        end
+        
+        Audio.playHit()
+    end
 end
 
 return Ship
