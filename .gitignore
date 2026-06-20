@@ -3,3 +3,7 @@ build/
 
 # Logs and temporary files
 *.log
+
+# Release zip packages
+gravity-win64.zip
+gravity-web.zip
