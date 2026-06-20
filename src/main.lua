@@ -11,6 +11,7 @@ local world
 local ship
 local starfield   -- background stars for ambiance
 local bullets = {} -- active projectiles
+local gameCanvas  -- Canvas for scaling resolution
 
 -- Platform spawn position (centre of the starting platform)
 local PLATFORM_X  = 180 + 80   -- platform.x + platform.w/2
@@ -32,13 +33,15 @@ end
 
 -- ── LÖVE callbacks ─────────────────────────────────────────────────────────
 function love.load(arg)
-    -- Check for command line flags (like --test)
+    -- Check for command line flags (like --test and --fullscreen)
     local isTest = false
+    local isFullscreen = false
     if arg then
         for _, val in ipairs(arg) do
             if val == "--test" then
                 isTest = true
-                break
+            elseif val == "--fullscreen" or val == "-f" then
+                isFullscreen = true
             end
         end
     end
@@ -50,6 +53,10 @@ function love.load(arg)
         return
     end
 
+    if isFullscreen then
+        love.window.setFullscreen(true)
+    end
+
     math.randomseed(os.time())
     love.graphics.setDefaultFilter("nearest", "nearest")
 
@@ -59,6 +66,9 @@ function love.load(arg)
     -- Place ship so its bottom edge sits flush on the platform surface
     local shipH = 22
     ship = Ship.new(PLATFORM_X, PLATFORM_Y - shipH / 2 + 2)
+
+    -- Create Canvas for scaling resolution
+    gameCanvas = love.graphics.newCanvas(1024, 768)
 
     -- Initialize procedural audio engine
     Audio.init()
@@ -83,8 +93,8 @@ function love.update(dt)
 end
 
 function love.draw()
-    -- ── Background ───────────────────────────────────────────
-    love.graphics.setBackgroundColor(0.04, 0.05, 0.08)
+    -- Render everything to the game canvas (using our fixed internal coordinate space)
+    love.graphics.setCanvas(gameCanvas)
     love.graphics.clear(0.04, 0.05, 0.08)
 
     -- Stars
@@ -106,6 +116,22 @@ function love.draw()
 
     -- ── HUD ──────────────────────────────────────────────────
     drawHUD()
+
+    -- Reset target back to physical screen
+    love.graphics.setCanvas()
+
+    -- Calculate aspect-ratio scaling to fit the actual window/screen size
+    local windowW, windowH = love.graphics.getDimensions()
+    local scale = math.min(windowW / 1024, windowH / 768)
+    local dx = (windowW - 1024 * scale) / 2
+    local dy = (windowH - 768 * scale) / 2
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setBackgroundColor(0, 0, 0)
+    love.graphics.clear(0, 0, 0)
+    
+    -- Draw scaled canvas
+    love.graphics.draw(gameCanvas, dx, dy, 0, scale, scale)
 end
 
 function drawHUD()

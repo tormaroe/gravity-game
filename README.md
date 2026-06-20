@@ -12,11 +12,15 @@ Ensure you have [LÖVE 11.5+](https://love2d.org/) and [just](https://github.com
 
 We use `just` as a command runner:
 
-*   **Run the game:**
+*   **Run the game (windowed):**
     ```bash
     just
     # or
     just run
+    ```
+*   **Run the game (fullscreen):**
+    ```bash
+    just fullscreen
     ```
 *   **Run unit tests:**
     ```bash
