@@ -197,7 +197,7 @@ function drawHUD()
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)
     love.graphics.printf(
-        "P1: WASD + Space (Fire)      |      P2: Arrows + Enter (Fire)      |      R: Reset",
+        "P1: WASD + Space (Fire)      |      P2: Arrows + Backspace (Fire)      |      R: Reset",
         0, 748, 1024, "center"
     )
     love.graphics.setColor(1, 1, 1)
@@ -221,7 +221,7 @@ function love.keypressed(key)
         table.insert(bullets, b)
         Audio.playShoot()
     end
-    if key == "return" then
+    if key == "backspace" then
         -- P2 (Red) fires bullet
         local hh = ship2.h / 2
         local spawnX = ship2.x + math.sin(ship2.angle) * hh
