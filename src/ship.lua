@@ -40,10 +40,26 @@ function Ship.new(x, y, config)
     self.fuel = 1.0             -- 1.0 = 100% full
     self.click_cooldown = 0.0   -- failure sound timer
 
+    -- Combat & Spawn state
+    self.isAlive = true
+    self.respawnTimer = 0.0
+    self.shootBlockTimer = 0.0
+    self.kills = 0
+
     return self
 end
 
 function Ship:update(dt)
+    if not self.isAlive then
+        self.respawnTimer = self.respawnTimer - dt
+        self.vx = 0
+        self.vy = 0
+        return
+    end
+
+    -- Decrement shooting block timer
+    self.shootBlockTimer = math.max(self.shootBlockTimer - dt, 0)
+
     local GRAVITY = 120  -- pixels per second^2 downward (lowered for easier maneuvering)
 
     -- ── Rotation ─────────────────────────────────────────────
@@ -193,6 +209,8 @@ function Ship:collide(terrain)
 end
 
 function Ship:draw()
+    if not self.isAlive then return end
+
     love.graphics.push()
     love.graphics.translate(self.x, self.y)
     love.graphics.rotate(self.angle)

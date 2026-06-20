@@ -4,6 +4,8 @@ local thrustSource = nil
 local shootSource = nil
 local hitSource = nil
 local clickSource = nil
+local explosionSource = nil
+local respawnSource = nil
 
 local currentVolume = 0
 local TARGET_VOLUME = 0.25  -- Max thrust volume
@@ -119,6 +121,59 @@ function Audio.init()
         clickSource = love.audio.newSource(soundData)
         clickSource:setVolume(0.4)
     end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 5. Big Ship Explosion Sound (Muffled Low-Pass Noise Blast)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.5
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local lp_prev = 0
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            local noise = math.random() * 2 - 1
+            -- Low-pass filter sweeps down for muffled explosion thud
+            local filterFactor = 0.25 * (1.0 - progress) + 0.005 * progress
+            local lp = lp_prev * (1.0 - filterFactor) + noise * filterFactor
+            lp_prev = lp
+            -- Decay envelope
+            local amp = (1.0 - progress) ^ 1.8
+            soundData:setSample(i, lp * amp * 0.7)
+        end
+
+        explosionSource = love.audio.newSource(soundData)
+        explosionSource:setVolume(0.8)
+    end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 6. Ship Respawn Sound (Digital Sweep-Up Arpeggio)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 0.3
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local phase = 0
+
+        for i = 0, samples - 1 do
+            local progress = i / (samples - 1)
+            -- Sweep pitch up from 250Hz to 950Hz
+            local freq = 250 + progress * 700
+            phase = phase + (2 * math.pi * freq) / rate
+            
+            -- Blend sine wave with clean square wave harmonic for teleport effect
+            local sine = math.sin(phase)
+            local square = (sine > 0 and 0.15 or -0.15)
+            
+            -- Fade in and out envelope
+            local amp = math.sin(progress * math.pi)
+            soundData:setSample(i, (sine * 0.7 + square * 0.3) * amp * 0.35)
+        end
+
+        respawnSource = love.audio.newSource(soundData)
+        respawnSource:setVolume(0.6)
+    end
 end
 
 function Audio.update(dt, isThrusting)
@@ -155,6 +210,20 @@ end
 function Audio.playClick()
     if clickSource then
         local instance = clickSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playExplosion()
+    if explosionSource then
+        local instance = explosionSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playRespawn()
+    if respawnSource then
+        local instance = respawnSource:clone()
         instance:play()
     end
 end

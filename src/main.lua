@@ -12,6 +12,7 @@ local ship1  -- Player 1 (Blue)
 local ship2  -- Player 2 (Red)
 local starfield   -- background stars for ambiance
 local bullets = {} -- active projectiles
+local particles = {} -- explosion particles
 local gameCanvas  -- Canvas for scaling resolution
 
 -- Platform spawn positions (symmetric)
@@ -39,6 +40,25 @@ local CONFIG_P2 = {
         cockpit = {0.6, 0.0, 0.0}
     }
 }
+
+-- Helper to trigger dynamic particle explosion
+local function spawnExplosion(x, y, color)
+    for i = 1, 35 do
+        local angle = math.random() * math.pi * 2
+        local speed = math.random() * 110 + 40
+        local life = math.random() * 0.7 + 0.3
+        table.insert(particles, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            life = life,
+            maxLife = life,
+            color = {color[1], color[2], color[3]},
+            size = math.random() * 2.5 + 1.5
+        })
+    end
+end
 
 -- ── Helpers ────────────────────────────────────────────────────────────────
 local function makeStars(count)
@@ -106,24 +126,102 @@ function love.update(dt)
     ship1:update(dt)
     ship2:update(dt)
 
-    -- 2. Resolve ship-to-ship collisions (pushes them apart)
-    Ship.resolveCollision(ship1, ship2)
+    -- 2. Resolve ship-to-ship collisions (only if both are alive)
+    if ship1.isAlive and ship2.isAlive then
+        Ship.resolveCollision(ship1, ship2)
+    end
 
-    -- 3. Resolve terrain collisions last (ensures they are always pushed back inside the walls)
-    ship1:collide(world:getRects())
-    ship2:collide(world:getRects())
+    -- 3. Resolve terrain collisions (only if alive)
+    if ship1.isAlive then ship1:collide(world:getRects()) end
+    if ship2.isAlive then ship2:collide(world:getRects()) end
 
-    -- Update active projectiles
+    -- 4. Update projectiles and check combat collisions
     for i = #bullets, 1, -1 do
         local b = bullets[i]
         b:update(dt, world:getRects())
+        
+        if b.isAlive then
+            -- Bullet vs Player 1
+            if ship1.isAlive and b.owner == 2 then
+                local hw = ship1.w / 2
+                local hh = ship1.h / 2
+                if b.x >= ship1.x - hw and b.x <= ship1.x + hw and b.y >= ship1.y - hh and b.y <= ship1.y + hh then
+                    b.isAlive = false
+                    ship1.isAlive = false
+                    ship1.respawnTimer = 3.0
+                    ship2.kills = ship2.kills + 1
+                    ship2.shootBlockTimer = 6.0 -- 3s dead + 3s spawn protection safety
+                    Audio.playExplosion()
+                    spawnExplosion(ship1.x, ship1.y, CONFIG_P1.color.hull)
+                end
+            end
+        end
+
+        if b.isAlive then
+            -- Bullet vs Player 2
+            if ship2.isAlive and b.owner == 1 then
+                local hw = ship2.w / 2
+                local hh = ship2.h / 2
+                if b.x >= ship2.x - hw and b.x <= ship2.x + hw and b.y >= ship2.y - hh and b.y <= ship2.y + hh then
+                    b.isAlive = false
+                    ship2.isAlive = false
+                    ship2.respawnTimer = 3.0
+                    ship1.kills = ship1.kills + 1
+                    ship1.shootBlockTimer = 6.0 -- 3s dead + 3s spawn protection safety
+                    Audio.playExplosion()
+                    spawnExplosion(ship2.x, ship2.y, CONFIG_P2.color.hull)
+                end
+            end
+        end
+
         if not b.isAlive then
             table.remove(bullets, i)
         end
     end
 
-    -- Update procedural audio state (if either ship is thrusting)
-    Audio.update(dt, ship1.thrusting or ship2.thrusting)
+    -- 5. Handle respawning
+    local shipH = 22
+    if not ship1.isAlive and ship1.respawnTimer <= 0 then
+        ship1.isAlive = true
+        ship1.fuel = 1.0
+        ship1.vx = 0
+        ship1.vy = 0
+        ship1.angle = 0
+        ship1.x = PLATFORM_1_X
+        ship1.y = PLATFORM_1_Y - shipH / 2 + 2
+        ship1.landed = true
+        Audio.playRespawn()
+    end
+
+    if not ship2.isAlive and ship2.respawnTimer <= 0 then
+        ship2.isAlive = true
+        ship2.fuel = 1.0
+        ship2.vx = 0
+        ship2.vy = 0
+        ship2.angle = 0
+        ship2.x = PLATFORM_2_X
+        ship2.y = PLATFORM_2_Y - shipH / 2 + 2
+        ship2.landed = true
+        Audio.playRespawn()
+    end
+
+    -- 6. Update explosion particles
+    for i = #particles, 1, -1 do
+        local p = particles[i]
+        p.life = p.life - dt
+        if p.life <= 0 then
+            table.remove(particles, i)
+        else
+            p.x = p.x + p.vx * dt
+            p.y = p.y + p.vy * dt
+            p.vy = p.vy + 30 * dt -- gravity drift for sparks
+        end
+    end
+
+    -- Update procedural audio state (if either ship is active and thrusting)
+    local thrusting1 = ship1.isAlive and ship1.thrusting
+    local thrusting2 = ship2.isAlive and ship2.thrusting
+    Audio.update(dt, thrusting1 or thrusting2)
 end
 
 function love.draw()
@@ -143,6 +241,13 @@ function love.draw()
     -- ── Projectiles ──────────────────────────────────────────
     for _, b in ipairs(bullets) do
         b:draw()
+    end
+
+    -- ── Explosion Particles ──────────────────────────────────
+    for _, p in ipairs(particles) do
+        local alpha = p.life / p.maxLife
+        love.graphics.setColor(p.color[1], p.color[2], p.color[3], alpha)
+        love.graphics.circle("fill", p.x, p.y, p.size)
     end
 
     -- ── Ships ────────────────────────────────────────────────
@@ -199,39 +304,77 @@ function drawHUD()
 
     -- ── Player 1 (Blue) Readout (Left side) ──────────────────
     love.graphics.setColor(0.5, 0.7, 1.0, 0.9) -- Blue HUD color
-    local speed1 = math.sqrt(ship1.vx * ship1.vx + ship1.vy * ship1.vy)
+    local speed1 = ship1.isAlive and math.sqrt(ship1.vx * ship1.vx + ship1.vy * ship1.vy) or 0
+    local angle1 = ship1.isAlive and math.deg(ship1.angle) % 360 or 0
     love.graphics.printf(
-        string.format("PLAYER 1 (BLUE)\nSPD  %5.1f\nANG  %5.1f°",
+        string.format("PLAYER 1 (BLUE)   [Kills: %d]\nSPD  %5.1f\nANG  %5.1f°",
+            ship1.kills,
             speed1,
-            math.deg(ship1.angle) % 360
+            angle1
         ),
-        20, 20, 250, "left"
+        20, 20, 280, "left"
     )
-    local status1 = ship1.landed and "LANDED" or "AIRBORNE"
-    local sc1 = ship1.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
-    love.graphics.setColor(sc1[1], sc1[2], sc1[3], 0.9)
-    love.graphics.printf(status1, 20, 75, 200, "left")
+    
+    if ship1.isAlive then
+        local status1 = ship1.landed and "LANDED" or "AIRBORNE"
+        local sc1 = ship1.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
+        love.graphics.setColor(sc1[1], sc1[2], sc1[3], 0.9)
+        love.graphics.printf(status1, 20, 75, 200, "left")
+
+        -- Weapons status / safety locks
+        if ship1.shootBlockTimer > 0 then
+            love.graphics.setColor(1.0, 0.5, 0.2, 0.95)
+            love.graphics.printf(string.format("WEAPONS LOCK: %1.1fs", ship1.shootBlockTimer), 20, 95, 200, "left")
+        else
+            love.graphics.setColor(0.4, 1.0, 0.4, 0.6)
+            love.graphics.printf("WEAPONS READY", 20, 95, 200, "left")
+        end
+    else
+        love.graphics.setColor(1.0, 0.3, 0.3, 0.95)
+        love.graphics.printf(string.format("DEAD - RESPAWN IN %1.1fs", math.max(ship1.respawnTimer, 0)), 20, 75, 250, "left")
+    end
 
     -- Player 1 Fuel Bar
-    drawFuelBar(20, 115, 120, 10, ship1.fuel)
+    if ship1.isAlive then
+        drawFuelBar(20, 130, 120, 10, ship1.fuel)
+    end
 
     -- ── Player 2 (Red) Readout (Right side) ──────────────────
     love.graphics.setColor(1.0, 0.5, 0.5, 0.9) -- Red HUD color
-    local speed2 = math.sqrt(ship2.vx * ship2.vx + ship2.vy * ship2.vy)
+    local speed2 = ship2.isAlive and math.sqrt(ship2.vx * ship2.vx + ship2.vy * ship2.vy) or 0
+    local angle2 = ship2.isAlive and math.deg(ship2.angle) % 360 or 0
     love.graphics.printf(
-        string.format("PLAYER 2 (RED)\nSPD  %5.1f\nANG  %5.1f°",
+        string.format("[Kills: %d]   PLAYER 2 (RED)\nSPD  %5.1f\nANG  %5.1f°",
+            ship2.kills,
             speed2,
-            math.deg(ship2.angle) % 360
+            angle2
         ),
-        1024 - 270, 20, 250, "right"
+        1024 - 300, 20, 280, "right"
     )
-    local status2 = ship2.landed and "LANDED" or "AIRBORNE"
-    local sc2 = ship2.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
-    love.graphics.setColor(sc2[1], sc2[2], sc2[3], 0.9)
-    love.graphics.printf(status2, 1024 - 220, 75, 200, "right")
+    
+    if ship2.isAlive then
+        local status2 = ship2.landed and "LANDED" or "AIRBORNE"
+        local sc2 = ship2.landed and {0.4, 1.0, 0.4} or {1.0, 0.7, 0.3}
+        love.graphics.setColor(sc2[1], sc2[2], sc2[3], 0.9)
+        love.graphics.printf(status2, 1024 - 220, 75, 200, "right")
+
+        -- Weapons status / safety locks
+        if ship2.shootBlockTimer > 0 then
+            love.graphics.setColor(1.0, 0.5, 0.2, 0.95)
+            love.graphics.printf(string.format("WEAPONS LOCK: %1.1fs", ship2.shootBlockTimer), 1024 - 220, 95, 200, "right")
+        else
+            love.graphics.setColor(0.4, 1.0, 0.4, 0.6)
+            love.graphics.printf("WEAPONS READY", 1024 - 220, 95, 200, "right")
+        end
+    else
+        love.graphics.setColor(1.0, 0.3, 0.3, 0.95)
+        love.graphics.printf(string.format("DEAD - RESPAWN IN %1.1fs", math.max(ship2.respawnTimer, 0)), 1024 - 270, 75, 250, "right")
+    end
 
     -- Player 2 Fuel Bar (Symmetric position on the right)
-    drawFuelBar(1024 - 140, 115, 120, 10, ship2.fuel)
+    if ship2.isAlive then
+        drawFuelBar(1024 - 140, 130, 120, 10, ship2.fuel)
+    end
 
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)
@@ -244,31 +387,38 @@ end
 
 function love.keypressed(key)
     if key == "r" then
-        -- Soft reset: put both ships back on their platforms
+        -- Soft reset: put both ships back on their platforms, wipe stats
         local shipH = 22
         ship1 = Ship.new(PLATFORM_1_X, PLATFORM_1_Y - shipH / 2 + 2, CONFIG_P1)
         ship2 = Ship.new(PLATFORM_2_X, PLATFORM_2_Y - shipH / 2 + 2, CONFIG_P2)
         bullets = {}
+        particles = {}
     end
     if key == "space" then
-        -- P1 (Blue) fires bullet
-        local hh = ship1.h / 2
-        local spawnX = ship1.x + math.sin(ship1.angle) * hh
-        local spawnY = ship1.y - math.cos(ship1.angle) * hh
-        
-        local b = Bullet.new(spawnX, spawnY, ship1.angle, ship1.vx, ship1.vy, {0.5, 0.8, 1.0, 0.9})
-        table.insert(bullets, b)
-        Audio.playShoot()
+        -- P1 (Blue) fires bullet (only if alive and weapons are not locked)
+        if ship1.isAlive and ship1.shootBlockTimer <= 0 then
+            local hh = ship1.h / 2
+            local spawnX = ship1.x + math.sin(ship1.angle) * hh
+            local spawnY = ship1.y - math.cos(ship1.angle) * hh
+            
+            local b = Bullet.new(spawnX, spawnY, ship1.angle, ship1.vx, ship1.vy, {0.5, 0.8, 1.0, 0.9})
+            b.owner = 1
+            table.insert(bullets, b)
+            Audio.playShoot()
+        end
     end
     if key == "backspace" then
-        -- P2 (Red) fires bullet
-        local hh = ship2.h / 2
-        local spawnX = ship2.x + math.sin(ship2.angle) * hh
-        local spawnY = ship2.y - math.cos(ship2.angle) * hh
-        
-        local b = Bullet.new(spawnX, spawnY, ship2.angle, ship2.vx, ship2.vy, {1.0, 0.5, 0.5, 0.9})
-        table.insert(bullets, b)
-        Audio.playShoot()
+        -- P2 (Red) fires bullet (only if alive and weapons are not locked)
+        if ship2.isAlive and ship2.shootBlockTimer <= 0 then
+            local hh = ship2.h / 2
+            local spawnX = ship2.x + math.sin(ship2.angle) * hh
+            local spawnY = ship2.y - math.cos(ship2.angle) * hh
+            
+            local b = Bullet.new(spawnX, spawnY, ship2.angle, ship2.vx, ship2.vy, {1.0, 0.5, 0.5, 0.9})
+            b.owner = 2
+            table.insert(bullets, b)
+            Audio.playShoot()
+        end
     end
     if key == "escape" then
         love.event.quit()
