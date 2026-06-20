@@ -6,6 +6,7 @@ local hitSource = nil
 local clickSource = nil
 local explosionSource = nil
 local respawnSource = nil
+local fanfareSource = nil
 
 local currentVolume = 0
 local TARGET_VOLUME = 0.25  -- Max thrust volume
@@ -174,6 +175,60 @@ function Audio.init()
         respawnSource = love.audio.newSource(soundData)
         respawnSource:setVolume(0.6)
     end
+
+    -- ────────────────────────────────────────────────────────────────
+    -- 7. Victory Fanfare Sound (Happy Retro Arpeggio)
+    -- ────────────────────────────────────────────────────────────────
+    do
+        local seconds = 1.2
+        local samples = math.floor(rate * seconds)
+        local soundData = love.sound.newSoundData(samples, rate, 16, 1)
+        local phase1 = 0
+        local phase2 = 0
+
+        for i = 0, samples - 1 do
+            local t = i / rate
+            local freq1, freq2 = 0, 0
+            local amp = 0.2
+            
+            if t < 0.15 then
+                freq1 = 261.63 -- C4
+                amp = amp * math.min(1, t / 0.02)
+            elseif t < 0.30 then
+                freq1 = 329.63 -- E4
+            elseif t < 0.45 then
+                freq1 = 392.00 -- G4
+            elseif t < 0.60 then
+                freq1 = 523.25 -- C5
+            else
+                freq1 = 783.99 -- G5
+                freq2 = 1046.50 -- C6
+                local decayProgress = (t - 0.60) / 0.60
+                amp = amp * (1.0 - decayProgress)
+            end
+
+            -- Update phases
+            phase1 = phase1 + (2 * math.pi * freq1) / rate
+            if freq2 > 0 then
+                phase2 = phase2 + (2 * math.pi * freq2) / rate
+            else
+                phase2 = 0
+            end
+
+            -- Calculate sound waveform (pulse/square-ish blended with sine for retro tone)
+            local val1 = 0.7 * math.sin(phase1) + 0.3 * (math.sin(phase1) > 0 and 1 or -1)
+            local val2 = 0
+            if freq2 > 0 then
+                val2 = 0.7 * math.sin(phase2) + 0.3 * (math.sin(phase2) > 0 and 1 or -1)
+            end
+
+            local sampleVal = (val1 + val2) * amp * 0.4
+            soundData:setSample(i, sampleVal)
+        end
+
+        fanfareSource = love.audio.newSource(soundData)
+        fanfareSource:setVolume(0.8)
+    end
 end
 
 function Audio.update(dt, isThrusting)
@@ -224,6 +279,13 @@ end
 function Audio.playRespawn()
     if respawnSource then
         local instance = respawnSource:clone()
+        instance:play()
+    end
+end
+
+function Audio.playFanfare()
+    if fanfareSource then
+        local instance = fanfareSource:clone()
         instance:play()
     end
 end

@@ -2,6 +2,8 @@
 
 A physics-based cave flyer game inspired by the classic Amiga game *Gravity Force*, built with the **LÖVE** (Love2D) engine.
 
+![Start Screen](gfx/startscreen.png)
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -31,34 +33,22 @@ We use `just` as a command runner:
 
 ## 🎮 Controls
 
-*   **A** / **D**: Rotate the ship left / right
-*   **W**: Fire thrusters (accelerate in current heading)
-*   **R**: Reset ship back to the starting platform
-*   **Esc**: Quit the game
-
----
-
-## 📂 Project Structure
-
-```
-├── src/
-│   ├── conf.lua     # Window config (1024x768, VSync)
-│   ├── main.lua     # Game entry, main loop & HUD
-│   ├── ship.lua     # Ship physics & collision engine
-│   ├── world.lua    # Level terrain definitions
-│   └── tests.lua    # Test suite for physics & collision
-├── justfile         # Script commands runner
-├── LICENSE          # MIT License
-└── README.md        # This file
-```
+*   **Player 1 (Blue):**
+    *   **A** / **D**: Rotate ship left / right
+    *   **W**: Fire thrusters
+    *   **Tab**: Shoot bullets
+*   **Player 2 (Red):**
+    *   **Left** / **Right**: Rotate ship left / right
+    *   **Up**: Fire thrusters
+    *   **Backspace**: Shoot bullets
+*   **General:**
+    *   **Enter**: Start game (on startup screen) or reset to startup screen (on game over screen)
+    *   **R**: Reset game state (while playing)
+    *   **Esc**: Quit the game
 
 ---
 
 ## 🧪 Testing
 
-We have built-in axis-aligned bounding box (AABB) collision unit tests verifying:
-*   Landing on platforms (top surface gravity snapping & friction damping)
-*   Ceiling collisions (bottom surface pushback)
-*   Wall collisions (side pushback & velocity zeroing)
+We have built-in collision, movement, and physics unit tests. You can run these via `just test`.
 
-You can run these via `just test`.
