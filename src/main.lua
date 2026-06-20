@@ -379,7 +379,7 @@ function drawHUD()
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)
     love.graphics.printf(
-        "P1: WASD + Space (Fire)      |      P2: Arrows + Backspace (Fire)      |      R: Reset",
+        "P1: WASD + Tab (Fire)      |      P2: Arrows + Backspace (Fire)      |      R: Reset",
         0, 748, 1024, "center"
     )
     love.graphics.setColor(1, 1, 1)
@@ -394,7 +394,7 @@ function love.keypressed(key)
         bullets = {}
         particles = {}
     end
-    if key == "space" then
+    if key == "tab" then
         -- P1 (Blue) fires bullet (only if alive and weapons are not locked)
         if ship1.isAlive and ship1.shootBlockTimer <= 0 then
             local hh = ship1.h / 2
