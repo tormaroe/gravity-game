@@ -6,3 +6,21 @@ function love.conf(t)
     t.window.resizable = false
     t.window.vsync  = 1
 end
+
+-- Player 1 (Blue) Controls Configuration
+-- Standard key names are used (e.g., "a"-"z", "tab", "lshift", "space")
+love.player1_controls = {
+    left   = "a",
+    right  = "d",
+    thrust = "w",
+    shoot  = "tab"
+}
+
+-- Player 2 (Red) Controls Configuration
+-- Standard key names are used (e.g., "left", "right", "up", "backspace", "rshift", "space")
+love.player2_controls = {
+    left   = "left",
+    right  = "right",
+    thrust = "up",
+    shoot  = "backspace"
+}

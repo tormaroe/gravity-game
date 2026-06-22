@@ -34,9 +34,21 @@ local PLATFORM_1_Y  = 768 - 140
 local PLATFORM_2_X  = 1024 - 180 - 80  -- Right platform center (symmetric)
 local PLATFORM_2_Y  = 768 - 140
 
--- Player 1 (Blue) configuration
+-- Player 1 (Blue) configuration default and custom values
+local default_p1_controls = { left = "a", right = "d", thrust = "w", shoot = "tab" }
+local default_p2_controls = { left = "left", right = "right", thrust = "up", shoot = "backspace" }
+
+local function loadControls(custom, defaults)
+    local tbl = {}
+    custom = custom or {}
+    for k, v in pairs(defaults) do
+        tbl[k] = custom[k] or v
+    end
+    return tbl
+end
+
 local CONFIG_P1 = {
-    controls = { left = "a", right = "d", thrust = "w" },
+    controls = loadControls(love.player1_controls, default_p1_controls),
     color = {
         hull    = {0.15, 0.45, 0.9},
         outline = {0.5, 0.8, 1.0},
@@ -46,13 +58,33 @@ local CONFIG_P1 = {
 
 -- Player 2 (Red) configuration
 local CONFIG_P2 = {
-    controls = { left = "left", right = "right", thrust = "up" },
+    controls = loadControls(love.player2_controls, default_p2_controls),
     color = {
         hull    = {0.9, 0.2, 0.15},
         outline = {1.0, 0.5, 0.5},
         cockpit = {0.6, 0.0, 0.0}
     }
 }
+
+-- Helper to format controls for UI display
+local function getControlsText(controls)
+    local left = controls.left or "a"
+    local right = controls.right or "d"
+    local thrust = controls.thrust or "w"
+    local shoot = controls.shoot or "tab"
+
+    local moveStr
+    if thrust == "w" and left == "a" and right == "d" then
+        moveStr = "WASD"
+    elseif thrust == "up" and left == "left" and right == "right" then
+        moveStr = "Arrows"
+    else
+        moveStr = string.format("%s/%s/%s", string.upper(thrust), string.upper(left), string.upper(right))
+    end
+
+    local shootStr = string.upper(shoot)
+    return moveStr, shootStr
+end
 
 -- Helper to trigger dynamic particle explosion
 local function spawnExplosion(x, y, color)
@@ -453,7 +485,8 @@ local function drawStartupScreen()
         love.graphics.printf("PLAYER 1 (BLUE)", 180, 470, 300, "center")
         love.graphics.setFont(fontSmall)
         love.graphics.setColor(0.8, 0.8, 0.8)
-        love.graphics.printf("Controls:\nWASD to Fly\nTab to Shoot", 180, 500, 300, "center")
+        local p1Move, p1Shoot = getControlsText(CONFIG_P1.controls)
+        love.graphics.printf(string.format("Controls:\n%s to Fly\n%s to Shoot", p1Move, p1Shoot), 180, 500, 300, "center")
     end
 
     if menuShip2 then
@@ -464,7 +497,8 @@ local function drawStartupScreen()
         love.graphics.printf("PLAYER 2 (RED)", 544, 470, 300, "center")
         love.graphics.setFont(fontSmall)
         love.graphics.setColor(0.8, 0.8, 0.8)
-        love.graphics.printf("Controls:\nArrow Keys to Fly\nBackspace to Shoot", 544, 500, 300, "center")
+        local p2Move, p2Shoot = getControlsText(CONFIG_P2.controls)
+        love.graphics.printf(string.format("Controls:\n%s to Fly\n%s to Shoot", p2Move, p2Shoot), 544, 500, 300, "center")
     end
 
     -- Blinking Prompt
@@ -721,10 +755,13 @@ function drawHUD()
 
     -- Controls reminder
     love.graphics.setColor(0.5, 0.6, 0.5, 0.6)
-    love.graphics.printf(
-        "P1: WASD + Tab (Fire)      |      P2: Arrows + Backspace (Fire)      |      R: Reset",
-        0, 748, 1024, "center"
+    local p1Move, p1Shoot = getControlsText(CONFIG_P1.controls)
+    local p2Move, p2Shoot = getControlsText(CONFIG_P2.controls)
+    local reminder = string.format(
+        "P1: %s + %s (Fire)      |      P2: %s + %s (Fire)      |      R: Reset",
+        p1Move, p1Shoot, p2Move, p2Shoot
     )
+    love.graphics.printf(reminder, 0, 748, 1024, "center")
     love.graphics.setColor(1, 1, 1)
 end
 
@@ -757,7 +794,7 @@ function love.keypressed(key)
         if key == "r" then
             resetGame()
         end
-        if key == "tab" then
+        if key == ship1.key_shoot then
             -- P1 (Blue) fires bullet (only if alive and weapons are not locked)
             if ship1.isAlive and ship1.shootBlockTimer <= 0 then
                 local hh = ship1.h / 2
@@ -781,7 +818,7 @@ function love.keypressed(key)
                 Audio.playShoot()
             end
         end
-        if key == "backspace" then
+        if key == ship2.key_shoot then
             -- P2 (Red) fires bullet (only if alive and weapons are not locked)
             if ship2.isAlive and ship2.shootBlockTimer <= 0 then
                 local hh = ship2.h / 2

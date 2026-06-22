@@ -30,6 +30,7 @@ function Ship.new(x, y, config)
     self.key_left   = controls.left or "a"
     self.key_right  = controls.right or "d"
     self.key_thrust = controls.thrust or "w"
+    self.key_shoot  = controls.shoot or "tab"
 
     local color = config.color or {}
     self.col_hull    = color.hull or {0.6, 0.85, 1.0}
